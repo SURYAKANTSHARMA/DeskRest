@@ -11,6 +11,7 @@ import Foundation
 import Observation
 import OSLog
 import CoreMedia
+import SwiftData
 
 @Observable
 final class PostureService: PostureServiceProtocol {
@@ -34,10 +35,12 @@ final class PostureService: PostureServiceProtocol {
     }
 
     // MARK: - Private Dependencies & Tasks
+    var modelContext: ModelContext?
     private var cameraService: (any CameraServiceProtocol)?
     private let visionAnalyzer  = VisionPoseAnalyzer()
     private let postureAnalyzer = PostureAnalyzer()
     private var frameTask: Task<Void, Never>?
+    private var lastLogTime: Date = .distantPast
 
     // MARK: - Init
     init(
@@ -94,6 +97,12 @@ final class PostureService: PostureServiceProtocol {
                     self.currentAssessment = assessment
                     if let score = assessment?.score {
                         self.postureScore  = score
+                        if Date.now.timeIntervalSince(self.lastLogTime) >= 60 {
+                            self.lastLogTime = .now
+                            let log = PostureLog(score: score)
+                            self.modelContext?.insert(log)
+                            try? self.modelContext?.save()
+                        }
                     }
                 }
             }
