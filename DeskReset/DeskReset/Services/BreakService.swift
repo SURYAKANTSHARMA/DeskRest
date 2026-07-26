@@ -8,11 +8,13 @@
 import Foundation
 import Observation
 import OSLog
+import SwiftData
 
 @Observable
 final class BreakService: BreakServiceProtocol {
 
     // MARK: - State
+    var modelContext: ModelContext?
     var isOnBreak: Bool         = false
     var currentSession: BreakSession? = nil
 
@@ -26,15 +28,28 @@ final class BreakService: BreakServiceProtocol {
     }
 
     func endBreak() async {
-        // TODO: Implement break end (persist session, update stats)
         Logger.services.info("BreakService.endBreak()")
+        if let session = currentSession {
+            session.endDate = .now
+            session.duration = session.endDate!.timeIntervalSince(session.startDate)
+            session.wasCompleted = true
+            modelContext?.insert(session)
+            try? modelContext?.save()
+        }
         isOnBreak      = false
         currentSession = nil
     }
 
     func skipBreak() async {
-        // TODO: Implement skip logic (reschedule timer)
         Logger.services.info("BreakService.skipBreak()")
+        if let session = currentSession {
+            session.endDate = .now
+            session.duration = session.endDate!.timeIntervalSince(session.startDate)
+            session.wasCompleted = false
+            modelContext?.insert(session)
+            try? modelContext?.save()
+        }
         isOnBreak = false
+        currentSession = nil
     }
 }

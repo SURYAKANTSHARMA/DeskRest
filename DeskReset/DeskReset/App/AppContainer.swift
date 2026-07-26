@@ -58,6 +58,7 @@ final class AppContainer {
         // --- Services ---
         let timerService            = TimerService()
         let breakService            = BreakService()
+        breakService.modelContext   = ModelContext(modelContainer)
         let notificationService     = NotificationService()
         let cameraService           = CameraService()
         let postureService          = PostureService(cameraService: cameraService)

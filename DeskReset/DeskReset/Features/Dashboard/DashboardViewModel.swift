@@ -190,8 +190,7 @@ final class DashboardViewModel {
 
     func takeBreakNow() async {
         await breakService?.startBreak(type: .short)
-        recoverySessions += 1
-        recoveryProgress  = min(Double(recoverySessions) / Double(recoveryGoal), 1.0)
+        await breakService?.endBreak() // This actually saves the session to the database
     }
 
     // MARK: - Helpers
