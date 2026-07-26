@@ -93,17 +93,23 @@ final class DashboardViewModel {
             isCalibrated = prefs.isCalibrated
             postureService?.updateBaseline(prefs.baseline)
 
-            // Card 2: Live score from PostureService or calculation
-            if let ps = postureService, ps.isMonitoring {
-                todayScore = ps.postureScore
-                todayScoreProgress = Double(todayScore) / 100.0
-                todayScoreLabel = scoreLabel(todayScore)
+            // Card 2: Real average score from PostureLogs
+            let logDescriptor = FetchDescriptor<PostureLog>()
+            let allLogs = (try? modelContext.fetch(logDescriptor)) ?? []
+            let todayLogs = allLogs.filter { calendar.isDateInToday($0.timestamp) }
+            
+            let averageScore: Int
+            if !todayLogs.isEmpty {
+                averageScore = todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
+            } else if let ps = postureService, ps.isMonitoring {
+                averageScore = ps.postureScore
             } else {
-                scoreSessionCount = todaySessions.count
-                todayScore        = min(scoreSessionCount * 12, 100)
-                todayScoreProgress = Double(todayScore) / 100.0
-                todayScoreLabel   = scoreLabel(todayScore)
+                averageScore = 0
             }
+            
+            todayScore = averageScore
+            todayScoreProgress = Double(todayScore) / 100.0
+            todayScoreLabel = scoreLabel(todayScore)
 
         } catch {
             Logger.data.error("Dashboard loadStats error: \(error)")
@@ -184,8 +190,7 @@ final class DashboardViewModel {
 
     func takeBreakNow() async {
         await breakService?.startBreak(type: .short)
-        recoverySessions += 1
-        recoveryProgress  = min(Double(recoverySessions) / Double(recoveryGoal), 1.0)
+        await breakService?.endBreak() // This actually saves the session to the database
     }
 
     // MARK: - Helpers

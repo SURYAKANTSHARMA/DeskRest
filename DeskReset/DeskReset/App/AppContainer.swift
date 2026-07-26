@@ -23,7 +23,8 @@ final class AppContainer {
         // --- SwiftData setup ---
         let schema = Schema([
             BreakSession.self,
-            UserPreferences.self
+            UserPreferences.self,
+            PostureLog.self
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -57,9 +58,11 @@ final class AppContainer {
         // --- Services ---
         let timerService            = TimerService()
         let breakService            = BreakService()
+        breakService.modelContext   = ModelContext(modelContainer)
         let notificationService     = NotificationService()
         let cameraService           = CameraService()
         let postureService          = PostureService(cameraService: cameraService)
+        postureService.modelContext = ModelContext(modelContainer)
         let ergonomicAdvisorService = ErgonomicAdvisorService()
 
         serviceLocator = ServiceLocator(
