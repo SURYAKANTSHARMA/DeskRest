@@ -72,10 +72,21 @@ struct StatsCardView: View {
             }
         }
         .padding(16)
-        .background(.surfaceSecondary, in: RoundedRectangle(cornerRadius: 14))
+        .background {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.textPrimary.opacity(0.02))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(accentColor.opacity(0.12), lineWidth: 1)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [accentColor.opacity(0.25), Color.textSecondary.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
     }
 }

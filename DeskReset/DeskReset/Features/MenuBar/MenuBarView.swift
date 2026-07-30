@@ -37,7 +37,7 @@ struct MenuBarView: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(
                         LinearGradient(
-                            colors: [.indigo, .purple],
+                            colors: Color.brandGradientColors,
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )

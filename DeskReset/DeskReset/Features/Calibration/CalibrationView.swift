@@ -8,6 +8,7 @@
 
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct CalibrationView: View {
 
@@ -30,6 +31,11 @@ struct CalibrationView: View {
         }
         .onDisappear {
             viewModel.cancel()
+        }
+        // When the user returns from System Settings, silently re-check if
+        // camera permission was granted and auto-advance back to .instructions.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            viewModel.recheckPermission()
         }
     }
 
@@ -72,6 +78,8 @@ struct CalibrationView: View {
             completedView(baseline)
         case .failed(let message):
             failedView(message)
+        case .permissionDenied:
+            permissionDeniedView
         }
     }
 
@@ -324,6 +332,114 @@ struct CalibrationView: View {
             .padding(.bottom, 20)
         }
         .padding(.horizontal, 24)
+    }
+
+    // MARK: — Permission Denied View
+
+
+    /// Shown when the user has explicitly denied camera access in macOS.
+    /// macOS will NEVER re-show the system permission dialog once denied —
+    /// the only fix is a manual trip to System Settings > Privacy & Security > Camera.
+    private var permissionDeniedView: some View {
+        VStack(spacing: 0) {
+
+            // ── Scrollable content (adapts to any frame height) ──────────────────────
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 14) {
+
+                    // Icon
+                    ZStack {
+                        Circle()
+                            .fill(Color.statusError.opacity(0.12))
+                            .frame(width: 68, height: 68)
+                        Image(systemName: "camera.badge.ellipsis")
+                            .font(.system(size: 30))
+                            .foregroundStyle(.statusError)
+                    }
+                    .padding(.top, 20)
+
+                    // Title + description
+                    VStack(spacing: 6) {
+                        Text("Camera Access Denied")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.textPrimary)
+
+                        Text("DeskReset needs camera access to detect your posture. macOS has blocked it — enable it in System Settings to continue.")
+                            .font(.subheadline)
+                            .foregroundStyle(.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    // Numbered steps card
+                    VStack(alignment: .leading, spacing: 8) {
+                        stepRow("1", "Tap \"Open System Settings\" below")
+                        stepRow("2", "Go to Privacy & Security → Camera")
+                        stepRow("3", "Enable the toggle next to DeskReset")
+                        stepRow("4", "Return here — screen auto-updates ✓")
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Color.statusError.opacity(0.2), lineWidth: 1)
+                    )
+                    .padding(.bottom, 8)
+                }
+                .padding(.horizontal, 24)
+            }
+
+            // ── Pinned button area — always visible ───────────────────────────
+            Divider()
+
+            VStack(spacing: 10) {
+                // Primary action
+                Button {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    Label("Open System Settings → Camera", systemImage: "gear")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.statusError)
+                .controlSize(.large)
+
+                // Secondary actions
+                HStack(spacing: 12) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+                    .frame(maxWidth: .infinity)
+
+                    Button("Try Calibration Again") {
+                        viewModel.startCalibration(modelContext: modelContext)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+        }
+    }
+
+    private func stepRow(_ number: String, _ label: String) -> some View {
+        HStack(spacing: 10) {
+            Text(number)
+                .font(.caption.weight(.bold))
+                .frame(width: 22, height: 22)
+                .background(Color.brandPrimary.opacity(0.15), in: Circle())
+                .foregroundStyle(.brandPrimary)
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.textPrimary)
+        }
     }
 }
 

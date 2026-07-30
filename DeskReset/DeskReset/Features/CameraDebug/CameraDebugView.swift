@@ -137,11 +137,11 @@ struct CameraDebugView: View {
         VStack(spacing: 20) {
             ZStack {
                 Circle()
-                    .fill(Color.indigo.opacity(0.15))
+                    .fill(Color.brandPrimary.opacity(0.15))
                     .frame(width: 90, height: 90)
                 Image(systemName: "camera.viewfinder")
                     .font(.system(size: 40, weight: .light))
-                    .foregroundStyle(Color.indigo.opacity(0.6))
+                    .foregroundStyle(Color.brandPrimary.opacity(0.6))
             }
 
             VStack(spacing: 6) {
@@ -301,7 +301,7 @@ struct CameraDebugView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(
                         LinearGradient(
-                            colors: [.indigo, .purple],
+                            colors: Color.brandGradientColors,
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )

@@ -61,7 +61,22 @@ struct NextBreakView: View {
             }
         }
         .padding(24)
-        .background(.surfaceSecondary, in: RoundedRectangle(cornerRadius: 18))
+        .background {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.textPrimary.opacity(0.02))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.brandPrimary.opacity(0.25), Color.textSecondary.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
     }
 }
 

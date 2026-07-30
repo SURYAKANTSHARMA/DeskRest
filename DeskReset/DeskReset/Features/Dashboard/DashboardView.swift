@@ -51,19 +51,25 @@ struct DashboardView: View {
     // MARK: — Sidebar
 
     private var sidebar: some View {
-        VStack(spacing: 0) {
-            // App brand header
+        VStack(alignment: .leading, spacing: 0) {
             sidebarHeader
-
             Divider()
 
-            // Nav items
-            List(SidebarItem.allCases, selection: $selectedSidebar) { item in
-                Label(item.rawValue, systemImage: item.icon)
-                    .tag(item)
-                    .padding(.vertical, 2)
+            // Nav items (Custom glassmorphism sidebar buttons)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(SidebarItem.allCases) { item in
+                    SidebarButton(
+                        item: item,
+                        isSelected: selectedSidebar == item
+                    ) {
+                        withAnimation(.spring(duration: 0.25)) {
+                            selectedSidebar = item
+                        }
+                    }
+                }
             }
-            .listStyle(.sidebar)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 12)
 
             Spacer(minLength: 0)
 
@@ -72,6 +78,14 @@ struct DashboardView: View {
             // Monitoring control at bottom of sidebar
             sidebarMonitoringControl
         }
+        .background(Color.drCardBackground)
+        .background(.ultraThinMaterial)
+        .overlay(
+            Rectangle()
+                .fill(Color.white.opacity(0.10))
+                .frame(width: 1),
+            alignment: .trailing
+        )
         .navigationSplitViewColumnWidth(min: 170, ideal: 190)
         .toolbar(removing: .sidebarToggle)
     }
@@ -82,7 +96,7 @@ struct DashboardView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(
                         LinearGradient(
-                            colors: [.indigo, .purple],
+                            colors: [.brandPrimary, .brandSecondary],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -105,26 +119,30 @@ struct DashboardView: View {
     }
 
     private var sidebarMonitoringControl: some View {
-        VStack(spacing: 10) {
-            // State indicator row
-            HStack(spacing: 7) {
+        VStack(spacing: 12) {
+            // Centered & larger State indicator row
+            HStack(spacing: 8) {
+                Spacer()
                 Circle()
-                    .fill(viewModel.monitoringState == .active ? Color.statusSuccess : Color(nsColor: .systemGray))
-                    .frame(width: 7, height: 7)
+                    .fill(viewModel.monitoringState == .active ? Color.brandSecondary : Color.textTertiary)
+                    .frame(width: 8, height: 8)
                     .shadow(
-                        color: viewModel.monitoringState == .active ? Color.statusSuccess.opacity(0.6) : .clear,
-                        radius: 3
+                        color: viewModel.monitoringState == .active ? Color.brandSecondary.opacity(0.8) : .clear,
+                        radius: 5
                     )
                 Text(viewModel.monitoringState.rawValue)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.textSecondary)
+                    .font(.system(size: 14.5, weight: .bold))
+                    .foregroundStyle(.textPrimary)
+
+                if viewModel.monitoringState == .active {
+                    Text("· \(viewModel.monitoringUptime)")
+                        .font(.system(size: 12.5, weight: .medium).monospacedDigit())
+                        .foregroundStyle(.textSecondary)
+                }
                 Spacer()
-                Text(viewModel.monitoringUptime)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.textTertiary)
             }
 
-            // Toggle button
+            // Toggle button (Frosted Glass Style with Pure White Text)
             Button {
                 withAnimation(.spring(duration: 0.3)) {
                     if viewModel.monitoringState == .active {
@@ -134,23 +152,50 @@ struct DashboardView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: viewModel.monitoringState == .active ? "stop.circle.fill" : "play.circle.fill")
-                    Text(viewModel.monitoringState == .active ? "Stop" : "Start Monitoring")
-                        .fontWeight(.medium)
+                        .font(.system(size: 16, weight: .bold))
+                    Text(viewModel.monitoringState == .active ? "Stop Monitoring" : "Start Monitoring")
+                        .font(.system(size: 14, weight: .bold))
                 }
+                .foregroundStyle(Color.white) // Crisp White text & icon!
                 .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(
+                            viewModel.monitoringState == .active
+                                ? LinearGradient(colors: [Color.statusError.opacity(0.85), Color.statusError.opacity(0.65)], startPoint: .leading, endPoint: .trailing)
+                                : LinearGradient(colors: [Color.brandPrimary.opacity(0.88), Color.brandSecondary.opacity(0.78)], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .background(.ultraThinMaterial, in: Capsule())
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            viewModel.monitoringState == .active
+                                ? AnyShapeStyle(Color.statusError.opacity(0.8))
+                                : AnyShapeStyle(Color.drGlassSpecularBorder),
+                            lineWidth: 1.2
+                        )
+                )
+                .shadow(
+                    color: viewModel.monitoringState == .active
+                        ? Color.statusError.opacity(0.4)
+                        : Color.brandPrimary.opacity(0.45),
+                    radius: 8,
+                    x: 0,
+                    y: 3
+                )
             }
-            .buttonStyle(.borderedProminent)
-            .tint(viewModel.monitoringState == .active ? .statusError : .brandPrimary)
-            .controlSize(.small)
+            .buttonStyle(.plain)
             .animation(.easeInOut(duration: 0.2), value: viewModel.monitoringState)
 
             // Posture chip
             HStack(spacing: 5) {
                 Image(systemName: "camera.viewfinder")
                     .font(.caption2)
-                Text("Posture Detection — Coming Soon")
+                Text("Posture Detection — Active")
                     .font(.caption2)
             }
             .foregroundStyle(.textTertiary)
@@ -173,7 +218,7 @@ struct DashboardView: View {
 
     private var overviewContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 24) {
                 pageHeader
                 if !viewModel.isCalibrated {
                     calibrationBanner
@@ -228,130 +273,122 @@ struct DashboardView: View {
                 showCalibrationSheet = true
             } label: {
                 Label("Calibrate Now", systemImage: "play.fill")
-                    .fontWeight(.semibold)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.brandAccent)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.brandPrimary.opacity(0.2))
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.brandPrimary, lineWidth: 1)
+                    )
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.brandPrimary)
-            .controlSize(.regular)
+            .buttonStyle(.plain)
         }
         .padding(14)
-        .background(.surfaceSecondary, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.drCardBackground, in: RoundedRectangle(cornerRadius: 14))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Color.brandPrimary.opacity(0.25), lineWidth: 1)
+                .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1)
         )
     }
 
-    // Page title + greeting
+    // Page title + formatted date
     private var pageHeader: some View {
-        HStack(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Good \(timeOfDayGreeting()) 👋")
+        HStack(alignment: .firstTextBaseline) {
+            HStack(spacing: 8) {
+                Text("Dashboard")
                     .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(.textPrimary)
+                Text("·")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(.textTertiary)
                 Text(Date.now.formatted(date: .complete, time: .omitted))
-                    .font(.subheadline)
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.textSecondary)
             }
             Spacer()
-            // Refresh button
+            // Glassmorphic Refresh button
             Button {
                 viewModel.loadStats(modelContext: modelContext)
                 viewModel.refreshMonitoringState()
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.brandAccent)
+                    .padding(7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.drCardBackground)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1)
+                    )
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(.plain)
             .help("Refresh dashboard")
         }
     }
 
-    // MARK: — 5 Placeholder Cards Grid
+    // MARK: — Two-Column Track Restructure (Consistent Card Heights)
 
     private var cardGrid: some View {
-        VStack(spacing: 14) {
-            // Row 1: three equal cards
-            HStack(spacing: 14) {
-                // Card 1 — Current Status
+        HStack(alignment: .top, spacing: 14) {
+            // LEFT COLUMN: Posture Tracker Track
+            VStack(spacing: 14) {
+                // Card 1 — Current Posture Status
                 DashboardCardView(
                     id: .currentStatus,
-                    title: "Current Status",
-                    icon: viewModel.currentStatusIcon,
+                    title: "Current Posture",
+                    icon: "figure.stand",
                     accentColor: statusAccentColor,
                     style: .status,
                     isSelected: viewModel.selectedCardID == .currentStatus,
                     primaryValue: viewModel.currentStatus,
                     secondaryLabel: viewModel.currentStatusDetail,
                     badge: viewModel.monitoringState.rawValue,
-                    badgeColor: badgeColorForState,
-                    isPlaceholder: viewModel.monitoringState == .inactive
+                    badgeColor: badgeColorForState
                 ) {
                     viewModel.selectedCardID = viewModel.selectedCardID == .currentStatus ? nil : .currentStatus
                 }
+                .frame(height: 160)
 
-                // Card 2 — Today's Score
+                // Card 2 — Live Vision AI Guidance
+                liveCameraGuidanceCard
+                    .frame(height: 160)
+            }
+
+            // RIGHT COLUMN: Wellness Stats Track
+            VStack(spacing: 14) {
+                // Card 3 — Daily Wellness Summary (Score + Breaks)
                 DashboardCardView(
                     id: .todayScore,
-                    title: "Today's Score",
+                    title: "Daily Score Summary",
                     icon: "chart.bar.fill",
                     accentColor: scoreAccentColor,
                     style: .progress,
                     isSelected: viewModel.selectedCardID == .todayScore,
                     primaryValue: viewModel.todayScore == 0 ? "—" : "\(viewModel.todayScore)",
-                    secondaryLabel: viewModel.todayScore == 0 ? "Start monitoring" : viewModel.todayScoreLabel,
-                    progress: viewModel.todayScoreProgress,
-                    isPlaceholder: viewModel.todayScore == 0
+                    secondaryLabel: viewModel.todayScore == 0 ? "Start monitoring to track" : "\(viewModel.todayScoreLabel) · \(viewModel.recoverySessions) breaks done",
+                    progress: viewModel.todayScoreProgress
                 ) {
                     viewModel.selectedCardID = viewModel.selectedCardID == .todayScore ? nil : .todayScore
                 }
+                .frame(height: 160)
 
-                // Card 3 — Monitoring State
-                DashboardCardView(
-                    id: .monitoringState,
-                    title: "Monitoring State",
-                    icon: viewModel.monitoringState.icon,
-                    accentColor: monitoringAccentColor,
-                    style: .standard,
-                    isSelected: viewModel.selectedCardID == .monitoringState,
-                    primaryValue: viewModel.monitoringState.rawValue,
-                    secondaryLabel: viewModel.monitoringState == .active
-                        ? "Running for \(viewModel.monitoringUptime)"
-                        : "Tap sidebar to start",
-                    isPlaceholder: viewModel.monitoringState == .inactive
-                ) {
-                    viewModel.selectedCardID = viewModel.selectedCardID == .monitoringState ? nil : .monitoringState
-                }
-            }
-            .frame(height: 150)
-
-            // Row 2: two wider cards
-            HStack(spacing: 14) {
-                // Card 4 — Recovery Sessions
-                DashboardCardView(
-                    id: .recoverySessions,
-                    title: "Recovery Sessions",
-                    icon: "figure.walk.circle.fill",
-                    accentColor: .teal,
-                    style: .progress,
-                    isSelected: viewModel.selectedCardID == .recoverySessions,
-                    primaryValue: "\(viewModel.recoverySessions)",
-                    secondaryLabel: viewModel.recoverySessions == 0
-                        ? "No sessions yet today"
-                        : "Last: \(viewModel.lastRecovery)",
-                    progress: viewModel.recoveryProgress,
-                    isPlaceholder: viewModel.recoverySessions == 0
-                ) {
-                    viewModel.selectedCardID = viewModel.selectedCardID == .recoverySessions ? nil : .recoverySessions
-                }
-
-                // Card 5 — Last Check Time
+                // Card 4 — Consistency / Last Check Time
                 DashboardCardView(
                     id: .lastCheckTime,
-                    title: "Last Check Time",
+                    title: "Consistency",
                     icon: "clock.badge.checkmark.fill",
-                    accentColor: .orange,
+                    accentColor: .brandAccent,
                     style: .timeline,
                     isSelected: viewModel.selectedCardID == .lastCheckTime,
                     primaryValue: viewModel.lastCheckDisplay,
@@ -359,58 +396,108 @@ struct DashboardView: View {
                         ? "Next check in \(viewModel.nextCheckIn)"
                         : nil,
                     secondaryLabel: viewModel.totalChecks > 0
-                        ? "\(viewModel.totalChecks) total check\(viewModel.totalChecks == 1 ? "" : "s") today"
-                        : "Waiting for first check",
-                    isPlaceholder: viewModel.lastCheckTime == nil
+                        ? "\(viewModel.totalChecks) check\(viewModel.totalChecks == 1 ? "" : "s") recorded today"
+                        : "Waiting for first check interval"
                 ) {
                     viewModel.selectedCardID = viewModel.selectedCardID == .lastCheckTime ? nil : .lastCheckTime
                 }
+                .frame(height: 160)
             }
-            .frame(height: 150)
         }
     }
 
-    // MARK: — Action Bar
+    // MARK: — Live Camera Guidance (Consistent 160pt Height)
+    private var liveCameraGuidanceCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.drIconTileBackground)
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "camera.viewfinder")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.brandSecondary)
+                }
+                Text("Vision AI Guidance")
+                    .font(.system(size: 14.5, weight: .bold))
+                    .foregroundStyle(.textPrimary)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(viewModel.monitoringState == .active ? Color.brandSecondary : Color.textTertiary)
+                        .frame(width: 6, height: 6)
+                    Text(viewModel.monitoringState == .active ? "ACTIVE" : "STANDBY")
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundStyle(viewModel.monitoringState == .active ? Color.brandSecondary : Color.textTertiary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3.5)
+                .background(Color.brandSecondary.opacity(0.14), in: Capsule())
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .strokeBorder(Color.brandSecondary.opacity(0.25), lineWidth: 1)
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "camera.viewfinder")
+                        .font(.system(size: 22, weight: .regular))
+                        .foregroundStyle(.brandSecondary)
+                        .shadow(color: Color.brandSecondary.opacity(0.6), radius: 6)
+                }
+                Text(
+                    viewModel.monitoringState == .active
+                        ? "Vision AI actively monitoring posture baseline"
+                        : "Start monitoring to activate Vision AI posture guidance"
+                )
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(.textPrimary)
+                .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(10)
+            .background(Color.drInnerBoxBackground, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.drCardBackground)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1.0)
+        )
+    }
+
+    // MARK: — Action Bar (Hollow Glass Buttons: Cyan text, Purple outline)
 
     private var actionBar: some View {
         HStack(spacing: 12) {
-            // Quick recovery break action with generated structured routine
-            Button {
+            // Take Recovery Break
+            HollowActionButton(
+                title: "Take Recovery Break",
+                icon: "figure.walk"
+            ) {
                 Task {
                     let assessment = serviceLocator.postureService.currentAssessment ?? PostureAssessment()
                     let routine = await serviceLocator.ergonomicAdvisorService.generateRoutine(for: assessment)
                     activeRoutine = routine
                 }
-            } label: {
-                Label("Take Recovery Break", systemImage: "figure.walk")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.brandPrimary)
-            .controlSize(.large)
 
-            // Calibrate posture button
-            Button {
+            // Calibrate Posture
+            HollowActionButton(
+                title: "Calibrate Posture",
+                icon: "figure.stand"
+            ) {
                 showCalibrationSheet = true
-            } label: {
-                Label("Calibrate Posture", systemImage: "figure.stand")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-
-            // History shortcut
-            Button {
-                selectedSidebar = .history
-            } label: {
-                Label("View History", systemImage: "clock.arrow.circlepath")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
         }
     }
 
@@ -433,22 +520,23 @@ struct DashboardView: View {
         .background(dashboardBackground)
     }
 
-    // MARK: — Background
+    // MARK: — Background (Vibrant Glowing Cosmic Orbs for Glassmorphism)
 
     private var dashboardBackground: some View {
         ZStack {
             Color(nsColor: .windowBackgroundColor)
-            // Subtle gradient orbs for depth
+            // Purple cosmic orb
             Circle()
-                .fill(Color.indigo.opacity(colorScheme == .dark ? 0.06 : 0.04))
-                .frame(width: 400, height: 400)
-                .blur(radius: 80)
-                .offset(x: -80, y: -80)
+                .fill(Color.brandPrimary.opacity(colorScheme == .dark ? 0.18 : 0.10))
+                .frame(width: 450, height: 450)
+                .blur(radius: 90)
+                .offset(x: -120, y: -100)
+            // Cyan aurora orb
             Circle()
-                .fill(Color.purple.opacity(colorScheme == .dark ? 0.05 : 0.03))
-                .frame(width: 300, height: 300)
-                .blur(radius: 80)
-                .offset(x: 200, y: 120)
+                .fill(Color.brandSecondary.opacity(colorScheme == .dark ? 0.15 : 0.08))
+                .frame(width: 380, height: 380)
+                .blur(radius: 90)
+                .offset(x: 220, y: 140)
         }
         .ignoresSafeArea()
     }
@@ -457,43 +545,141 @@ struct DashboardView: View {
 
     private var statusAccentColor: Color {
         switch viewModel.monitoringState {
-        case .active:   return .statusSuccess
+        case .active:   return .brandSecondary
         case .paused:   return .statusWarning
         case .inactive: return .brandPrimary
         }
     }
 
     private var scoreAccentColor: Color {
-        switch viewModel.todayScore {
-        case 80...100: return .statusSuccess
-        case 60..<80:  return .statusWarning
-        case 1..<60:   return .statusError
-        default:       return .brandAccent
-        }
-    }
-
-    private var monitoringAccentColor: Color {
-        viewModel.monitoringState == .active ? .statusSuccess : Color(nsColor: .systemGray)
+        Color.postureScoreColor(for: viewModel.todayScore)
     }
 
     private var badgeColorForState: Color {
         switch viewModel.monitoringState {
-        case .active:   return .statusSuccess
+        case .active:   return .brandSecondary
         case .paused:   return .statusWarning
         case .inactive: return Color(nsColor: .systemGray)
         }
     }
+}
 
-    // MARK: — Helpers
+// MARK: — Sidebar Button (Frosted Glass Capsule + Pure White Text)
 
-    private func timeOfDayGreeting() -> String {
-        let hour = Calendar.current.component(.hour, from: .now)
-        switch hour {
-        case 5..<12:  return "Morning"
-        case 12..<17: return "Afternoon"
-        case 17..<21: return "Evening"
-        default:      return "Night"
+struct SidebarButton: View {
+    let item: DashboardView.SidebarItem
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: item.icon)
+                    .font(.system(size: 14.5, weight: isSelected ? .bold : .semibold))
+                    .foregroundStyle(isSelected ? Color.white : (isHovered ? Color.white : Color.textSecondary))
+
+                Text(item.rawValue)
+                    .font(.system(size: 14, weight: isSelected ? .bold : .semibold))
+                    .foregroundStyle(isSelected ? Color.white : (isHovered ? Color.white : Color.textSecondary))
+
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9.5)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .background {
+            if isSelected {
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.brandPrimary.opacity(0.88),
+                                Color.brandSecondary.opacity(0.78)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1.2)
+                    )
+                    .shadow(color: Color.brandPrimary.opacity(0.45), radius: 8, x: 0, y: 3)
+            } else if isHovered {
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.brandPrimary.opacity(0.30),
+                                Color.brandSecondary.opacity(0.18)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1.0)
+                    )
+                    .shadow(color: Color.brandPrimary.opacity(0.20), radius: 6, x: 0, y: 2)
+            }
+        }
+        .onHover { isHovered = $0 }
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+    }
+}
+
+// MARK: — Hollow Action Button (Frosted Glass + Cyan Text + Purple Outline)
+
+struct HollowActionButton: View {
+    let title: String
+    let icon: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color.white) // Crisp Pure White text & icon!
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(
+                            isHovered
+                                ? LinearGradient(colors: [Color.brandPrimary.opacity(0.85), Color.brandSecondary.opacity(0.75)], startPoint: .leading, endPoint: .trailing)
+                                : LinearGradient(colors: [Color.brandPrimary.opacity(0.35), Color.brandSecondary.opacity(0.20)], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .background(.ultraThinMaterial, in: Capsule())
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            isHovered
+                                ? AnyShapeStyle(Color.brandSecondary)
+                                : AnyShapeStyle(Color.drGlassSpecularBorder),
+                            lineWidth: 1.2
+                        )
+                )
+                .shadow(
+                    color: Color.brandPrimary.opacity(isHovered ? 0.50 : 0.25),
+                    radius: 8,
+                    x: 0,
+                    y: 3
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 }
 

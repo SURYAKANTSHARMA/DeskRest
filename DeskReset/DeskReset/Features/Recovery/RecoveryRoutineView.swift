@@ -109,10 +109,10 @@ struct RecoveryRoutineView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color.statusWarning.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color.orange.opacity(0.2), lineWidth: 1)
+                .strokeBorder(Color.statusWarning.opacity(0.2), lineWidth: 1)
         )
     }
 
@@ -188,15 +188,15 @@ struct RecoveryRoutineView: View {
                         .font(.caption2.weight(.medium))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
-                        .background(Color.teal.opacity(0.12), in: Capsule())
-                        .foregroundStyle(.teal)
+                        .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+                        .foregroundStyle(.brandPrimary)
 
                     Label(exercise.repetitions, systemImage: "repeat")
                         .font(.caption2.weight(.medium))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
-                        .background(Color.purple.opacity(0.12), in: Capsule())
-                        .foregroundStyle(.purple)
+                        .background(Color.brandSecondary.opacity(0.12), in: Capsule())
+                        .foregroundStyle(.brandSecondary)
                 }
 
                 Text(exercise.instructions)

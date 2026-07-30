@@ -38,6 +38,8 @@ struct DashboardCardView: View {
 
     var onTap: (() -> Void)?      = nil
 
+    @State private var isHovered: Bool = false
+
     var body: some View {
         Button {
             onTap?()
@@ -45,15 +47,25 @@ struct DashboardCardView: View {
             cardContent
         }
         .buttonStyle(.plain)
-        .background(cardBackground, in: RoundedRectangle(cornerRadius: 18))
+        .background {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(
+                    isSelected
+                        ? Color.brandPrimary.opacity(0.14)
+                        : (isHovered ? Color.brandPrimary.opacity(0.06) : Color.drCardBackground)
+                )
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        }
         .overlay(selectionRing)
         .shadow(
-            color: isSelected ? accentColor.opacity(0.18) : Color.black.opacity(0.04),
-            radius: isSelected ? 10 : 4,
+            color: isSelected ? Color.brandPrimary.opacity(0.3) : (isHovered ? Color.brandPrimary.opacity(0.15) : Color.black.opacity(0.06)),
+            radius: isSelected ? 12 : (isHovered ? 8 : 4),
             y: isSelected ? 4 : 2
         )
-        .scaleEffect(isSelected ? 1.02 : 1.0)
+        .scaleEffect(isSelected ? 1.02 : (isHovered ? 1.012 : 1.0))
+        .onHover { isHovered = $0 }
         .animation(.spring(duration: 0.25), value: isSelected)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 
     // MARK: — Card Content
@@ -77,18 +89,18 @@ struct DashboardCardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 if let val = primaryValue {
                     Text(val)
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundStyle(.textPrimary)
                         .contentTransition(.numericText())
                 }
                 if let lbl = primaryLabel {
                     Text(lbl)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.textPrimary)
                 }
                 if let sub = secondaryLabel {
                     Text(sub)
-                        .font(.caption)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.textSecondary)
                 }
             }
@@ -107,31 +119,31 @@ struct DashboardCardView: View {
                 // Mini ring
                 ZStack {
                     Circle()
-                        .stroke(accentColor.opacity(0.15), lineWidth: 5)
+                        .stroke(accentColor.opacity(0.18), lineWidth: 5)
                     Circle()
                         .trim(from: 0, to: progress ?? 0)
                         .stroke(accentColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                         .animation(.easeInOut(duration: 0.5), value: progress)
                     Text("\(Int((progress ?? 0) * 100))%")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundStyle(accentColor)
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 46, height: 46)
             }
 
             Spacer(minLength: 0)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 if let val = primaryValue {
                     Text(val)
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
                         .foregroundStyle(.textPrimary)
                         .contentTransition(.numericText())
                 }
                 if let sub = secondaryLabel {
                     Text(sub)
-                        .font(.caption)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.textSecondary)
                 }
             }
@@ -146,25 +158,41 @@ struct DashboardCardView: View {
         VStack(alignment: .leading, spacing: 14) {
             cardHeader
             Spacer(minLength: 0)
-            HStack(alignment: .center, spacing: 10) {
-                if let val = primaryValue {
-                    Text(val)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(.textPrimary)
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .center, spacing: 8) {
+                        if let val = primaryValue {
+                            Text(val)
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundStyle(.textPrimary)
+                        }
+                        if let badge = badge, let bc = badgeColor {
+                            Text(badge.capitalized)
+                                .font(.system(size: 11, weight: .bold))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(bc.opacity(0.18), in: Capsule())
+                                .foregroundStyle(bc)
+                        }
+                    }
+                    if let sub = secondaryLabel {
+                        Text(sub)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.textSecondary)
+                    }
                 }
-                if let badge = badge, let bc = badgeColor {
-                    Text(badge)
-                        .font(.caption2.weight(.bold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(bc.opacity(0.15), in: Capsule())
-                        .foregroundStyle(bc)
-                }
-            }
-            if let sub = secondaryLabel {
-                Text(sub)
-                    .font(.caption)
-                    .foregroundStyle(.textSecondary)
+                Spacer(minLength: 8)
+                // Glowing posture pulse wave (Option A Cyberpunk Glass feature)
+                Image(systemName: "waveform.path.ecg")
+                    .font(.system(size: 26, weight: .medium))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.brandPrimary, Color.brandSecondary],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .shadow(color: Color.brandSecondary.opacity(0.5), radius: 6)
             }
         }
         .padding(18)
@@ -180,23 +208,23 @@ struct DashboardCardView: View {
             VStack(alignment: .leading, spacing: 5) {
                 if let val = primaryValue {
                     Text(val)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(.textPrimary)
                 }
                 if let lbl = primaryLabel {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.forward.circle")
-                            .font(.caption2)
-                            .foregroundStyle(.textTertiary)
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundStyle(accentColor)
                         Text(lbl)
-                            .font(.caption)
-                            .foregroundStyle(.textSecondary)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.textPrimary)
                     }
                 }
                 if let sub = secondaryLabel {
                     Text(sub)
-                        .font(.caption2)
-                        .foregroundStyle(.textTertiary)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.textSecondary)
                 }
             }
         }
@@ -207,63 +235,36 @@ struct DashboardCardView: View {
     // MARK: — Shared Sub-views
 
     private var cardHeader: some View {
-        HStack(spacing: 0) {
-            // Icon pill
+        HStack(spacing: 10) {
+            // Icon squircle tile (Option A: drIconTileBackground)
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(accentColor.opacity(0.13))
+                    .fill(Color.drIconTileBackground)
                     .frame(width: 36, height: 36)
                 Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(accentColor)
             }
 
-            Spacer()
-
-            // Placeholder label if no real data yet
-            if isPlaceholder {
-                Text("Placeholder")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.textTertiary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(Color(nsColor: .systemGray).opacity(0.12), in: Capsule())
-            }
-        }
-
-        .overlay(alignment: .leading) {
-            // Card title bottom-aligned
             Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.textSecondary)
-                .offset(x: 44)           // right of icon
-                .padding(.leading, 8)
+                .font(.system(size: 14.5, weight: .bold))
+                .foregroundStyle(.textPrimary)
+
+            Spacer()
         }
     }
 
     // MARK: — Backgrounds
 
-    private var cardBackground: some ShapeStyle {
-        if isSelected {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: [
-                        accentColor.opacity(0.08),
-                        Color(nsColor: .controlBackgroundColor)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-        }
-        return AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
-    }
-
     private var selectionRing: some View {
         RoundedRectangle(cornerRadius: 18)
             .strokeBorder(
-                isSelected ? accentColor.opacity(0.5) : accentColor.opacity(0.08),
-                lineWidth: isSelected ? 1.5 : 1
+                isSelected
+                    ? AnyShapeStyle(LinearGradient(colors: [Color.brandPrimary, Color.brandSecondary], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    : (isHovered
+                        ? AnyShapeStyle(LinearGradient(colors: [Color.brandPrimary.opacity(0.7), Color.brandSecondary.opacity(0.5)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        : AnyShapeStyle(Color.drGlassSpecularBorder)),
+                lineWidth: isSelected ? 1.5 : 1.0
             )
     }
 }

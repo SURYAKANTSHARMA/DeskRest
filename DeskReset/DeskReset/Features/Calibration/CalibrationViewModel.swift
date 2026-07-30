@@ -16,6 +16,9 @@ enum CalibrationPhase: Equatable {
     case calibrating
     case completed(PostureBaseline)
     case failed(String)
+    /// Camera access was explicitly denied in macOS Settings.
+    /// macOS won't re-show the system prompt — user must go to System Settings > Privacy > Camera.
+    case permissionDenied
 }
 
 // MARK: — Calibration Sample
@@ -48,6 +51,7 @@ final class CalibrationViewModel {
     private var samples: [CalibrationSample] = []
     private var calibrationTask: Task<Void, Never>?
     private var timerTask: Task<Void, Never>?
+    private var permissionCheckTask: Task<Void, Never>?
 
     // MARK: - Init
     init() {}
@@ -57,6 +61,48 @@ final class CalibrationViewModel {
         self.cameraService  = serviceLocator.cameraService
         self.postureService = serviceLocator.postureService
         Logger.ui.info("CalibrationViewModel configured")
+    }
+
+    // MARK: - Permission Polling
+
+    /// Starts a background task that polls AVCaptureDevice.authorizationStatus every 2 seconds.
+    /// This is more reliable than NSApplication.didBecomeActiveNotification (which can miss events
+    /// when CalibrationView is presented as a sheet).
+    /// The loop exits automatically when permission is granted or the phase changes.
+    private func startPermissionPolling() {
+        permissionCheckTask?.cancel()
+        permissionCheckTask = Task { @MainActor [weak self] in
+            while true {
+                // Wait 2 seconds between each check
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                guard let self, self.phase == .permissionDenied else { return }
+                guard let cameraService = self.cameraService else { return }
+
+                // requestPermission() reads AVCaptureDevice.authorizationStatus fresh from the OS.
+                // It returns true immediately (no dialog) if the user just granted access in Settings.
+                let granted = await cameraService.requestPermission()
+                if granted {
+                    self.phase = .instructions
+                    Logger.ui.info("CalibrationViewModel: camera permission granted via polling — advancing to instructions")
+                    return
+                }
+            }
+        }
+    }
+
+    /// Manual trigger (e.g. from NSApplication.didBecomeActiveNotification) that checks
+    /// permission immediately without waiting for the next 2-second poll cycle.
+    func recheckPermission() {
+        guard phase == .permissionDenied else { return }
+        Task { @MainActor [weak self] in
+            guard let self, let cameraService = self.cameraService else { return }
+            let granted = await cameraService.requestPermission()
+            if granted {
+                self.phase = .instructions
+                Logger.ui.info("CalibrationViewModel: camera permission granted on foreground — advancing to instructions")
+            }
+        }
     }
 
     // MARK: - Start Calibration
@@ -73,6 +119,9 @@ final class CalibrationViewModel {
         samples.removeAll()
         samplesCount     = 0
 
+        // Cancel any in-flight permission poll from a previous denial
+        permissionCheckTask?.cancel()
+
         // 1. Ensure camera is authorized & running
         calibrationTask?.cancel()
         calibrationTask = Task { [weak self] in
@@ -81,7 +130,16 @@ final class CalibrationViewModel {
             if !cameraService.isRunning {
                 let granted = await cameraService.requestPermission()
                 guard granted else {
-                    self.phase = .failed("Camera permission is required for calibration.")
+                    // Distinguish "denied/restricted" (can't re-prompt, needs System Settings)
+                    // from other failures where "Try Again" is still meaningful.
+                    if cameraService.permissionStatus == .denied || cameraService.permissionStatus == .restricted {
+                        self.phase = .permissionDenied
+                        // Start background polling so the UI auto-updates when
+                        // the user enables camera access in System Settings.
+                        self.startPermissionPolling()
+                    } else {
+                        self.phase = .failed("Camera permission is required for calibration.")
+                    }
                     return
                 }
                 try? await cameraService.start()
@@ -226,6 +284,7 @@ final class CalibrationViewModel {
     func cancel() {
         timerTask?.cancel()
         calibrationTask?.cancel()
+        permissionCheckTask?.cancel()
         if postureService?.isMonitoring == false {
             cameraService?.stop()
         }
