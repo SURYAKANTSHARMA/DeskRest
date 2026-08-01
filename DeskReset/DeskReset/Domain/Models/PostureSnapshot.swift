@@ -20,10 +20,14 @@ public struct PostureJoint: Sendable, Equatable, Identifiable {
     /// Vision detection confidence score: 0.0 → 1.0
     public let confidence: Float
 
-    public init(name: String, point: CGPoint, confidence: Float) {
+    /// 3D Z-axis depth relative to camera (in meters). Nil if 3D detection is unavailable.
+    public let zDepth: Float?
+
+    public init(name: String, point: CGPoint, confidence: Float, zDepth: Float? = nil) {
         self.name = name
         self.point = point
         self.confidence = confidence
+        self.zDepth = zDepth
     }
 
     /// Converts normalized Vision point (bottom-left origin) to SwiftUI canvas point (top-left origin).

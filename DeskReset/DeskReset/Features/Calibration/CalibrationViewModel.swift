@@ -28,6 +28,7 @@ private struct CalibrationSample {
     let shoulderTilt: Double
     let torsoLean: Double
     let shoulderWidthRatio: Double
+    let shoulderZDiff: Double
 }
 
 // MARK: — ViewModel
@@ -191,12 +192,20 @@ final class CalibrationViewModel {
         let shoulderWidth = hypot(dxShoulders, dyShoulders)
         let torsoHeight   = max(hypot(dxTorso, dyTorso), 0.05)
         let widthRatio    = shoulderWidth / torsoHeight
+        
+        let zDiff: Double
+        if let lz = lShoulder.zDepth, let rz = rShoulder.zDepth {
+            zDiff = Double(lz - rz)
+        } else {
+            zDiff = 0.0
+        }
 
         samples.append(CalibrationSample(
             headOffset: headOffset,
             shoulderTilt: shoulderTilt,
             torsoLean: torsoLean,
-            shoulderWidthRatio: widthRatio
+            shoulderWidthRatio: widthRatio,
+            shoulderZDiff: zDiff
         ))
         samplesCount = samples.count
     }
@@ -243,6 +252,7 @@ final class CalibrationViewModel {
         let meanShoulderTilt = samples.reduce(0.0) { $0 + $1.shoulderTilt } / totalCount
         let meanTorsoLean   = samples.reduce(0.0) { $0 + $1.torsoLean } / totalCount
         let meanWidthRatio  = samples.reduce(0.0) { $0 + $1.shoulderWidthRatio } / totalCount
+        let meanZDiff       = samples.reduce(0.0) { $0 + $1.shoulderZDiff } / totalCount
 
         let baseline = PostureBaseline(
             isCalibrated: true,
@@ -250,7 +260,8 @@ final class CalibrationViewModel {
             headOffset: meanHeadOffset,
             shoulderTilt: meanShoulderTilt,
             torsoLean: meanTorsoLean,
-            shoulderWidthRatio: meanWidthRatio
+            shoulderWidthRatio: meanWidthRatio,
+            shoulderZDiff: meanZDiff
         )
 
         // 1. Update PostureService

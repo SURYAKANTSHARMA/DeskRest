@@ -14,6 +14,7 @@ public struct PostureBaseline: Sendable, Codable, Equatable {
     public var shoulderTilt: Double
     public var torsoLean: Double
     public var shoulderWidthRatio: Double
+    public var shoulderZDiff: Double
 
     public static let uncalibrated = PostureBaseline(
         isCalibrated: false,
@@ -21,7 +22,8 @@ public struct PostureBaseline: Sendable, Codable, Equatable {
         headOffset: 0.0,
         shoulderTilt: 0.0,
         torsoLean: 0.0,
-        shoulderWidthRatio: 1.0
+        shoulderWidthRatio: 1.0,
+        shoulderZDiff: 0.0
     )
 
     public init(
@@ -30,7 +32,8 @@ public struct PostureBaseline: Sendable, Codable, Equatable {
         headOffset: Double = 0.0,
         shoulderTilt: Double = 0.0,
         torsoLean: Double = 0.0,
-        shoulderWidthRatio: Double = 1.0
+        shoulderWidthRatio: Double = 1.0,
+        shoulderZDiff: Double = 0.0
     ) {
         self.isCalibrated = isCalibrated
         self.calibratedAt = calibratedAt
@@ -38,5 +41,6 @@ public struct PostureBaseline: Sendable, Codable, Equatable {
         self.shoulderTilt = shoulderTilt
         self.torsoLean = torsoLean
         self.shoulderWidthRatio = shoulderWidthRatio
+        self.shoulderZDiff = shoulderZDiff
     }
 }

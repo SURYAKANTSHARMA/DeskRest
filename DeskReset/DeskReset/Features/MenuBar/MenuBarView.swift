@@ -196,8 +196,13 @@ struct MenuBarView: View {
                     subtitle: "Begin posture detection",
                     iconColor: .statusSuccess
                 ) {
-                    withAnimation(.spring(duration: 0.3)) {
-                        viewModel.startMonitoring()
+                    if viewModel.isCalibrated {
+                        withAnimation(.spring(duration: 0.3)) {
+                            viewModel.startMonitoring()
+                        }
+                    } else {
+                        // Open the main dashboard window to show the calibration sheet
+                        openWindow(id: AppWindowID.dashboard)
                     }
                 }
             }

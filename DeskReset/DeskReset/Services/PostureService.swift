@@ -22,6 +22,8 @@ final class PostureService: PostureServiceProtocol {
     var currentSnapshot: PostureSnapshot?   = nil
     var currentAssessment: PostureAssessment? = nil
     var baseline: PostureBaseline           = .uncalibrated
+    var monitoringInterval: TimeInterval    = 90
+    var nextCheckTime: Date?                = nil
 
     var statusDescription: String {
         guard isMonitoring else { return "Monitoring stopped" }
@@ -76,34 +78,51 @@ final class PostureService: PostureServiceProtocol {
         frameTask = Task { [weak self] in
             guard let self else { return }
 
-            // Ensure camera is authorized & running
-            if !cameraService.isRunning {
-                _ = await cameraService.requestPermission()
-                try? await cameraService.start()
-            }
+            _ = await cameraService.requestPermission()
 
-            let stream = cameraService.frameStream()
-            for await sampleBuffer in stream {
-                guard !Task.isCancelled else { break }
-
-                // 1. Detect Vision body pose
-                let snapshot = self.visionAnalyzer.analyze(sampleBuffer: sampleBuffer)
-
-                // 2. Perform posture analysis & smoothing using calibrated baseline
-                let assessment = snapshot.map { self.postureAnalyzer.analyze(snapshot: $0, baseline: self.baseline) }
-
-                await MainActor.run {
-                    self.currentSnapshot   = snapshot
-                    self.currentAssessment = assessment
-                    if let score = assessment?.score {
-                        self.postureScore  = score
-                        if Date.now.timeIntervalSince(self.lastLogTime) >= 60 {
-                            self.lastLogTime = .now
-                            let log = PostureLog(score: score)
-                            self.modelContext?.insert(log)
-                            try? self.modelContext?.save()
+            while self.isMonitoring && !Task.isCancelled {
+                do {
+                    try await cameraService.start()
+                    
+                    let stream = cameraService.frameStream()
+                    var validFramesCount = 0
+                    
+                    for await sampleBuffer in stream {
+                        guard !Task.isCancelled, self.isMonitoring else { break }
+                        
+                        let snapshot = self.visionAnalyzer.analyze(sampleBuffer: sampleBuffer)
+                        if let snapshot = snapshot {
+                            let assessment = self.postureAnalyzer.analyze(snapshot: snapshot, baseline: self.baseline)
+                            
+                            validFramesCount += 1
+                            // Wait for a few frames so the camera auto-exposure settles
+                            if validFramesCount >= 3 {
+                                await MainActor.run {
+                                    self.currentSnapshot   = snapshot
+                                    self.currentAssessment = assessment
+                                    self.postureScore  = assessment.score
+                                    
+                                    let log = PostureLog(score: assessment.score, issuesSummary: assessment.summaryText)
+                                    self.modelContext?.insert(log)
+                                    try? self.modelContext?.save()
+                                }
+                                break // Got a good reading, stop processing frames
+                            }
                         }
                     }
+                    
+                    cameraService.stop()
+                    
+                    await MainActor.run {
+                        self.nextCheckTime = Date.now.addingTimeInterval(self.monitoringInterval)
+                    }
+                    
+                    // Sleep until next interval
+                    try await Task.sleep(nanoseconds: UInt64(self.monitoringInterval * 1_000_000_000))
+                    
+                } catch {
+                    Logger.services.error("PostureService monitoring polling loop error: \(error)")
+                    try? await Task.sleep(nanoseconds: 5_000_000_000) // retry in 5s on error
                 }
             }
         }
@@ -116,6 +135,7 @@ final class PostureService: PostureServiceProtocol {
         currentSnapshot = nil
         currentAssessment = nil
         postureScore = 100
+        nextCheckTime = nil
         cameraService?.stop()
         Logger.services.info("PostureService: stopMonitoring()")
     }

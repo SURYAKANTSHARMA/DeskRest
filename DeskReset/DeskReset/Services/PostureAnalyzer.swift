@@ -122,34 +122,63 @@ final class PostureAnalyzer: @unchecked Sendable {
         // Issue 1: Forward Head Posture (relative to calibrated baseline head offset)
         let targetHeadOffset = baseline.isCalibrated ? baseline.headOffset : 0.0
         let headOffsetDelta  = abs(smoothedForwardHeadOffset - targetHeadOffset)
+        
+        // --- 3D Modifier: Forward Head Verification ---
+        var isHeadProtruding = true // Default to true if 3D is not available
+        if let hz = head.zDepth, let tz = snapshot.torso?.zDepth {
+            // Negative Z is closer to the camera in Vision 3D coordinates.
+            // If the head isn't significantly closer to the camera than the torso, they aren't slouching forward.
+            // They might just be leaning their whole body forward straight-backed.
+            if hz - tz > -0.05 { // 5cm tolerance
+                isHeadProtruding = false
+            }
+        }
 
         if headOffsetDelta > Thresholds.forwardHeadMild {
-            let sev: PostureIssue.Severity =
-                headOffsetDelta > Thresholds.forwardHeadSevere ? .severe :
-                (headOffsetDelta > Thresholds.forwardHeadModerate ? .moderate : .mild)
+            if isHeadProtruding {
+                let sev: PostureIssue.Severity =
+                    headOffsetDelta > Thresholds.forwardHeadSevere ? .severe :
+                    (headOffsetDelta > Thresholds.forwardHeadModerate ? .moderate : .mild)
 
-            issues.append(PostureIssue(
-                type: .forwardHead,
-                severity: sev,
-                description: "Head is forward from your calibrated baseline."
-            ))
+                issues.append(PostureIssue(
+                    type: .forwardHead,
+                    severity: sev,
+                    description: "Head is forward from your calibrated baseline."
+                ))
+            }
         }
 
         // Issue 2: Shoulder Imbalance (relative to calibrated baseline shoulder tilt)
         let targetShoulderTilt = baseline.isCalibrated ? baseline.shoulderTilt : 0.0
         let shoulderTiltDelta  = abs(smoothedShoulderTilt - targetShoulderTilt)
+        
+        // --- 3D Modifier: Sitting at an Angle ---
+        var isSittingAtAngle = false
+        if let lz = lShoulder.zDepth, let rz = rShoulder.zDepth {
+            let currentZDiff = Double(lz - rz)
+            let baselineZDiff = baseline.isCalibrated ? baseline.shoulderZDiff : 0.0
+            
+            // If the Z difference between left and right shoulder deviates from baseline by > 5cm (0.05m),
+            // it means the user's torso is rotated relative to the camera!
+            if abs(currentZDiff - baselineZDiff) > 0.05 {
+                isSittingAtAngle = true
+            }
+        }
 
         if shoulderTiltDelta > Thresholds.shoulderTiltMild {
-            let sev: PostureIssue.Severity =
-                shoulderTiltDelta > Thresholds.shoulderTiltSevere ? .severe :
-                (shoulderTiltDelta > Thresholds.shoulderTiltModerate ? .moderate : .mild)
+            // Forgive the tilt if the user is just sitting at an angle
+            if !isSittingAtAngle {
+                let sev: PostureIssue.Severity =
+                    shoulderTiltDelta > Thresholds.shoulderTiltSevere ? .severe :
+                    (shoulderTiltDelta > Thresholds.shoulderTiltModerate ? .moderate : .mild)
 
-            let side = (smoothedShoulderTilt - targetShoulderTilt) > 0 ? "Right" : "Left"
-            issues.append(PostureIssue(
-                type: .shoulderImbalance,
-                severity: sev,
-                description: "\(side) shoulder is elevated from baseline."
-            ))
+                let side = (smoothedShoulderTilt - targetShoulderTilt) > 0 ? "Right" : "Left"
+                issues.append(PostureIssue(
+                    type: .shoulderImbalance,
+                    severity: sev,
+                    description: "\(side) shoulder is elevated from baseline."
+                ))
+            }
         }
 
         // Issue 3: Torso Lean (relative to calibrated baseline torso lean)
@@ -174,11 +203,14 @@ final class PostureAnalyzer: @unchecked Sendable {
         let relativeWidthCompression = smoothedShoulderWidthRatio / max(targetWidthRatio, 0.1)
 
         if relativeWidthCompression < Thresholds.roundedShouldersRatioThreshold {
-            issues.append(PostureIssue(
-                type: .roundedShoulders,
-                severity: .moderate,
-                description: "Shoulders are rounded forward from baseline."
-            ))
+            // Forgive the rounded shoulders penalty if the user is rotated in 3D space
+            if !isSittingAtAngle {
+                issues.append(PostureIssue(
+                    type: .roundedShoulders,
+                    severity: .moderate,
+                    description: "Shoulders are rounded forward from baseline."
+                ))
+            }
         }
 
         // 5. Compute Posture Score (0 - 100)
