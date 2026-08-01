@@ -21,6 +21,9 @@ protocol PostureServiceProtocol: AnyObject {
     var currentAssessment: PostureAssessment? { get }
     /// User's calibrated posture baseline.
     var baseline: PostureBaseline { get }
+    
+    var monitoringInterval: TimeInterval { get set }
+    var nextCheckTime: Date? { get }
 
     func updateBaseline(_ baseline: PostureBaseline)
     func startMonitoring()

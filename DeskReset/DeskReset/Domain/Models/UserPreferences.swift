@@ -17,6 +17,7 @@ final class UserPreferences {
     var longBreakDuration: TimeInterval
     var microBreakDuration: TimeInterval
     var defaultBreakTypeRaw: String
+    var monitoringInterval: TimeInterval
 
     // MARK: - Notifications
     var notificationsEnabled: Bool
@@ -70,6 +71,7 @@ final class UserPreferences {
         self.longBreakDuration    = 900         // 15 min
         self.microBreakDuration   = 90          // 1.5 min
         self.defaultBreakTypeRaw  = BreakType.short.rawValue
+        self.monitoringInterval   = 90          // 90 seconds
         self.notificationsEnabled = true
         self.soundEnabled         = true
         self.reminderLeadSeconds  = 60

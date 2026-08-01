@@ -67,6 +67,9 @@ struct DashboardView: View {
                 }
             }
         }
+        .onChange(of: serviceLocator.postureService.nextCheckTime) { _, _ in
+            viewModel.loadStats(modelContext: modelContext)
+        }
         .animation(.spring(duration: 0.5), value: viewModel.showOnboarding)
     }
 
@@ -175,7 +178,11 @@ struct DashboardView: View {
                     if viewModel.monitoringState == .active {
                         viewModel.stopMonitoring()
                     } else {
-                        viewModel.startMonitoring()
+                        if viewModel.isCalibrated {
+                            viewModel.startMonitoring()
+                        } else {
+                            showCalibrationSheet = true
+                        }
                     }
                 }
             } label: {
@@ -462,9 +469,7 @@ struct DashboardView: View {
                     primaryLabel: viewModel.lastCheckTime != nil
                         ? "Next check in \(viewModel.nextCheckIn)"
                         : nil,
-                    secondaryLabel: viewModel.totalChecks > 0
-                        ? "\(viewModel.totalChecks) check\(viewModel.totalChecks == 1 ? "" : "s") recorded today"
-                        : "Waiting for first check interval"
+                    secondaryLabel: viewModel.lastScanFeedback
                 ) {
                     viewModel.selectedCardID = viewModel.selectedCardID == .lastCheckTime ? nil : .lastCheckTime
                 }

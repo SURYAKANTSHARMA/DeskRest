@@ -12,9 +12,11 @@ import SwiftData
 public final class PostureLog {
     public var timestamp: Date
     public var score: Int
+    public var issuesSummary: String?
     
-    public init(timestamp: Date = .now, score: Int) {
+    public init(timestamp: Date = .now, score: Int, issuesSummary: String? = nil) {
         self.timestamp = timestamp
         self.score = score
+        self.issuesSummary = issuesSummary
     }
 }

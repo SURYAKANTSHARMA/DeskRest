@@ -42,6 +42,7 @@ final class DashboardViewModel {
     var lastCheckDisplay: String     = "Never"
     var nextCheckIn: String          = "—"
     var totalChecks: Int             = 0
+    var lastScanFeedback: String     = "Waiting for first scan..."
 
     // MARK: - Other State
     var recentSessions: [BreakSession] = []
@@ -87,6 +88,7 @@ final class DashboardViewModel {
     // MARK: - Private Services
     private var breakService: (any BreakServiceProtocol)?
     private var postureService: (any PostureServiceProtocol)?
+    private var uiTimer: Timer?
 
     // MARK: - Init
     init() {}
@@ -127,11 +129,18 @@ final class DashboardViewModel {
             let prefs = prefsList.first ?? UserPreferences()
             isCalibrated = prefs.isCalibrated
             postureService?.updateBaseline(prefs.baseline)
+            postureService?.monitoringInterval = prefs.monitoringInterval
 
             // Card 2: Real average score from PostureLogs
-            let logDescriptor = FetchDescriptor<PostureLog>()
+            let logDescriptor = FetchDescriptor<PostureLog>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
             let allLogs = (try? modelContext.fetch(logDescriptor)) ?? []
             let todayLogs = allLogs.filter { calendar.isDateInToday($0.timestamp) }
+            
+            if let lastLog = todayLogs.first, let feedback = lastLog.issuesSummary {
+                lastScanFeedback = feedback
+            } else {
+                lastScanFeedback = "No scans yet today"
+            }
             
             let averageScore: Int
             if !todayLogs.isEmpty {
@@ -175,6 +184,11 @@ final class DashboardViewModel {
         lastCheckTime    = .now
         totalChecks     += 1
         refreshCurrentStatus()
+        
+        uiTimer?.invalidate()
+        uiTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.refreshCurrentStatus()
+        }
     }
 
     func stopMonitoring() {
@@ -182,6 +196,8 @@ final class DashboardViewModel {
         monitoringState = .inactive
         monitoringUptime = "—"
         monitoringSince  = nil
+        uiTimer?.invalidate()
+        uiTimer = nil
         refreshCurrentStatus()
     }
 
@@ -211,14 +227,23 @@ final class DashboardViewModel {
     }
 
     private func updateLastCheck() {
-        guard let t = lastCheckTime else {
-            lastCheckDisplay = "Never"
-            nextCheckIn      = "—"
-            return
+        if let t = postureService?.nextCheckTime {
+            let seconds = Int(t.timeIntervalSince(Date.now))
+            if seconds > 0 {
+                nextCheckIn = "in \(seconds)s"
+            } else {
+                nextCheckIn = "Checking now..."
+                lastCheckTime = .now
+            }
+        } else {
+            nextCheckIn = "—"
         }
-        lastCheckDisplay = t.formatted(.relative(presentation: .named))
-        nextCheckIn      = "~1 min"
-        totalChecks     += 1
+        
+        if let t = lastCheckTime {
+            lastCheckDisplay = t.formatted(.relative(presentation: .named))
+        } else {
+            lastCheckDisplay = "Never"
+        }
     }
 
     // MARK: - Actions

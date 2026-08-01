@@ -47,6 +47,8 @@ final class MenuBarViewModel {
 
     // Derived
     var isMonitoring: Bool { monitoringState == .active }
+    
+    var isCalibrated: Bool { postureService?.baseline.isCalibrated ?? false }
 
     var lastCheckText: String {
         guard let t = lastCheckTime else { return "Never" }
