@@ -185,14 +185,8 @@ struct DashboardCardView: View {
                 // Glowing posture pulse wave (Option A Cyberpunk Glass feature)
                 Image(systemName: "waveform.path.ecg")
                     .font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.brandPrimary, Color.brandSecondary],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .shadow(color: Color.brandSecondary.opacity(0.5), radius: 6)
+                    .foregroundStyle(Color.brandAccent)
+                    .shadow(color: Color.brandAccent.opacity(0.4), radius: 6)
             }
         }
         .padding(18)
@@ -260,9 +254,9 @@ struct DashboardCardView: View {
         RoundedRectangle(cornerRadius: 18)
             .strokeBorder(
                 isSelected
-                    ? AnyShapeStyle(LinearGradient(colors: [Color.brandPrimary, Color.brandSecondary], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    ? AnyShapeStyle(Color.brandPrimary)
                     : (isHovered
-                        ? AnyShapeStyle(LinearGradient(colors: [Color.brandPrimary.opacity(0.7), Color.brandSecondary.opacity(0.5)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        ? AnyShapeStyle(Color.brandPrimary.opacity(0.6))
                         : AnyShapeStyle(Color.drGlassSpecularBorder)),
                 lineWidth: isSelected ? 1.5 : 1.0
             )

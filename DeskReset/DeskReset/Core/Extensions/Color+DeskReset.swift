@@ -38,6 +38,15 @@ extension Color {
             : NSColor(red: 56/255,  green: 189/255, blue: 248/255, alpha: 1.0) // #38BDF8 Soft Sky Cyan
     }))
 
+    /// Button icon accent: Vivid Sky Cyan (#0EA5E9) in Light Mode for visibility on white/purple backgrounds,
+    /// Soft Sky Cyan (#38BDF8) in Dark Mode for neon glow.
+    static let buttonIconAccent = Color(nsColor: NSColor(name: nil, dynamicProvider: { appearance in
+        let isLight = appearance.bestMatch(from: [.aqua, .darkAqua]) == .aqua
+        return isLight
+            ? NSColor(red: 14/255,  green: 165/255, blue: 233/255, alpha: 1.0) // #0EA5E9 Vivid Sky Cyan
+            : NSColor(red: 56/255,  green: 189/255, blue: 248/255, alpha: 1.0) // #38BDF8 Soft Sky Cyan
+    }))
+
     // MARK: - Adaptive Card Surface & Glassmorphic Tokens (Light & Dark Mode)
 
     /// Translucent glassmorphic card background: 85% white in Light Mode, 55% Dark Slate (#1A1C23) in Dark Mode.
@@ -57,15 +66,8 @@ extension Color {
     }))
 
     /// Specular highlight gradient stroke for glass edges.
-    static let drGlassSpecularBorder = LinearGradient(
-        colors: [
-            Color.white.opacity(0.35),
-            Color.brandPrimary.opacity(0.20),
-            Color.white.opacity(0.05)
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    /// Specular highlight border stroke for glass edges (Solid Purple tint).
+    static let drGlassSpecularBorder = Color.brandPrimary.opacity(0.25)
 
     /// Adaptive squircle icon container tile: Light Purple tint in Light Mode, Translucent in Dark Mode.
     static let drIconTileBackground = Color(nsColor: NSColor(name: nil, dynamicProvider: { appearance in
@@ -126,9 +128,9 @@ extension Color {
     static let breakShort = Color(red: 16/255,  green: 185/255, blue: 129/255) // emerald
     static let breakLong  = Color.brandPrimary
 
-    // MARK: - Brand Gradient (Adaptive Purple to Cyan)
+    // MARK: - Solid Primary Brand Color Array
     static let brandGradientColors: [Color] = [
         Color.brandPrimary,
-        Color.brandSecondary
+        Color.brandPrimary
     ]
 }

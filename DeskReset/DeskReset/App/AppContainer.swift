@@ -73,5 +73,9 @@ final class AppContainer {
             cameraService: cameraService,
             ergonomicAdvisorService: ergonomicAdvisorService
         )
+
+        // Reset onboarding state in UserDefaults so the onboarding flow shows up on the next build and run.
+        // You can comment this line out once you have completed testing the onboarding flow.
+        UserDefaults.standard.removeObject(forKey: "dr_onboarding_complete")
     }
 }

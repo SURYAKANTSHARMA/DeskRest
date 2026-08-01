@@ -79,14 +79,7 @@ struct StatsCardView: View {
         }
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [accentColor.opacity(0.25), Color.textSecondary.opacity(0.1)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+                .strokeBorder(accentColor.opacity(0.25), lineWidth: 1)
         )
     }
 }
