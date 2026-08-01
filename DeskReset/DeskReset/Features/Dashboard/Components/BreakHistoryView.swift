@@ -33,14 +33,7 @@ struct BreakHistoryView: View {
         }
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.brandPrimary.opacity(0.2), Color.textSecondary.opacity(0.1)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+                .strokeBorder(Color.brandPrimary.opacity(0.2), lineWidth: 1)
         )
     }
 

@@ -299,13 +299,7 @@ struct CameraDebugView: View {
         HStack(spacing: 10) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        LinearGradient(
-                            colors: Color.brandGradientColors,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(Color.brandPrimary)
                     .frame(width: 30, height: 30)
                 Image(systemName: "camera.viewfinder")
                     .font(.system(size: 13, weight: .bold))

@@ -35,13 +35,7 @@ struct MenuBarView: View {
             // App icon
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(
-                        LinearGradient(
-                            colors: Color.brandGradientColors,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(Color.brandPrimary)
                     .frame(width: 36, height: 36)
                 Image(systemName: "figure.walk")
                     .font(.system(size: 16, weight: .semibold))

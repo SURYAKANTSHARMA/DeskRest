@@ -49,6 +49,41 @@ final class DashboardViewModel {
     var isCalibrated: Bool           = false
     var selectedCardID: DashboardCardID? = nil
 
+    /// First-launch onboarding — persisted in UserDefaults
+    var showOnboarding: Bool = !UserDefaults.standard.bool(forKey: "dr_onboarding_complete")
+
+    // MARK: - Derived: Top Posture Issue (for Daily Summary card)
+    var topPostureIssue: String? {
+        if let issues = postureService?.currentAssessment?.issues, let top = issues.first {
+            return top.type.rawValue
+        }
+        return nil
+    }
+
+    var topPostureIssueIcon: String? {
+        if let issues = postureService?.currentAssessment?.issues, let top = issues.first {
+            return top.type.icon
+        }
+        return nil
+    }
+
+    /// Context-aware motivational tip based on top posture issue or score.
+    var motivationalTip: String {
+        guard let issues = postureService?.currentAssessment?.issues, !issues.isEmpty else {
+            if todayScore >= 80 { return "Excellent posture today! Keep it going." }
+            if todayScore >= 60 { return "Good work — take a short break every hour." }
+            if todayScore == 0  { return "Start monitoring to track your posture score." }
+            return "Stay consistent — small improvements compound over time."
+        }
+        switch issues.first?.type {
+        case .forwardHead:      return "Chin back — bring your head over your shoulders."
+        case .roundedShoulders: return "Roll shoulders back and open your chest."
+        case .shoulderImbalance: return "Check your seat height — keep both shoulders level."
+        case .torsoLean:        return "Sit up straight — avoid leaning to one side."
+        case .none:             return "Keep going — consistency is the key to good posture."
+        }
+    }
+
     // MARK: - Private Services
     private var breakService: (any BreakServiceProtocol)?
     private var postureService: (any PostureServiceProtocol)?
@@ -190,7 +225,12 @@ final class DashboardViewModel {
 
     func takeBreakNow() async {
         await breakService?.startBreak(type: .short)
-        await breakService?.endBreak() // This actually saves the session to the database
+        await breakService?.endBreak()
+    }
+
+    func completeOnboarding() {
+        UserDefaults.standard.set(true, forKey: "dr_onboarding_complete")
+        showOnboarding = false
     }
 
     // MARK: - Helpers

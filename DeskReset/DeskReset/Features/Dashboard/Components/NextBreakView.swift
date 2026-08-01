@@ -52,8 +52,13 @@ struct NextBreakView: View {
                 Button {
                     Task { await onTakeBreak() }
                 } label: {
-                    Label("Take Break Now", systemImage: "play.circle.fill")
-                        .font(.subheadline.weight(.semibold))
+                    HStack(spacing: 6) {
+                        Image(systemName: "play.circle.fill")
+                            .foregroundStyle(Color.brandAccent)
+                        Text("Take Break Now")
+                            .foregroundStyle(Color.white)
+                    }
+                    .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.brandPrimary)
@@ -68,14 +73,7 @@ struct NextBreakView: View {
         }
         .overlay(
             RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.brandPrimary.opacity(0.25), Color.textSecondary.opacity(0.1)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+                .strokeBorder(Color.brandPrimary.opacity(0.25), lineWidth: 1)
         )
     }
 }
