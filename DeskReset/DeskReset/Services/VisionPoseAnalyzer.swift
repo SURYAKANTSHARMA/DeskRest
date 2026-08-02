@@ -41,22 +41,22 @@ final class VisionPoseAnalyzer: @unchecked Sendable {
             return nil
         }
         
+        // Fast-fail: If the 2D request found nothing, don't run the heavy 3D math!
+        guard let observation = request.results?.first else {
+            return nil
+        }
+        
+        var obs3D: Any? = nil
         if let req3D = request3D {
             do {
                 try handler.perform([req3D])
+                if #available(macOS 14.0, *) {
+                    obs3D = req3D.results?.first as? VNHumanBodyPose3DObservation
+                }
             } catch {
                 // Ignore 3D errors (e.g. ABPK unsupported on some devices), we'll just fall back to 2D
                 Logger.services.debug("Vision 3D request skipped/failed: \(error)")
             }
-        }
-
-        guard let observation = request.results?.first else {
-            return nil
-        }
-
-        var obs3D: Any? = nil
-        if #available(macOS 14.0, *) {
-            obs3D = request3D?.results?.first as? VNHumanBodyPose3DObservation
         }
 
         return extractSnapshot(from: observation, obs3D: obs3D)

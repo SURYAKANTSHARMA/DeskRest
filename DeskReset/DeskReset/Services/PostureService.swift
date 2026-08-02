@@ -83,32 +83,50 @@ final class PostureService: PostureServiceProtocol {
             while self.isMonitoring && !Task.isCancelled {
                 do {
                     try await cameraService.start()
-                    
-                    let stream = cameraService.frameStream()
-                    var validFramesCount = 0
-                    
-                    for await sampleBuffer in stream {
-                        guard !Task.isCancelled, self.isMonitoring else { break }
-                        
-                        let snapshot = self.visionAnalyzer.analyze(sampleBuffer: sampleBuffer)
-                        if let snapshot = snapshot {
-                            let assessment = self.postureAnalyzer.analyze(snapshot: snapshot, baseline: self.baseline)
-                            
-                            validFramesCount += 1
-                            // Wait for a few frames so the camera auto-exposure settles
-                            if validFramesCount >= 3 {
-                                await MainActor.run {
-                                    self.currentSnapshot   = snapshot
-                                    self.currentAssessment = assessment
-                                    self.postureScore  = assessment.score
+                    // Enforce a strict 3.0 second timeout using a TaskGroup race
+                    do {
+                        try await withThrowingTaskGroup(of: Void.self) { group in
+                            // Task 1: Frame processing stream
+                            group.addTask {
+                                let stream = cameraService.frameStream()
+                                var validFramesCount = 0
+                                
+                                for await sampleBuffer in stream {
+                                    guard !Task.isCancelled, self.isMonitoring else { break }
                                     
-                                    let log = PostureLog(score: assessment.score, issuesSummary: assessment.summaryText)
-                                    self.modelContext?.insert(log)
-                                    try? self.modelContext?.save()
+                                    let snapshot = self.visionAnalyzer.analyze(sampleBuffer: sampleBuffer)
+                                    if let snapshot = snapshot {
+                                        let assessment = self.postureAnalyzer.analyze(snapshot: snapshot, baseline: self.baseline)
+                                        
+                                        validFramesCount += 1
+                                        if validFramesCount >= 3 {
+                                            await MainActor.run {
+                                                self.currentSnapshot   = snapshot
+                                                self.currentAssessment = assessment
+                                                self.postureScore  = assessment.score
+                                                
+                                                let log = PostureLog(score: assessment.score, issuesSummary: assessment.summaryText)
+                                                self.modelContext?.insert(log)
+                                                try? self.modelContext?.save()
+                                            }
+                                            break // Got a good reading, stop processing frames
+                                        }
+                                    }
                                 }
-                                break // Got a good reading, stop processing frames
                             }
+                            
+                            // Task 2: Strict hardware timeout clock
+                            group.addTask {
+                                try await Task.sleep(nanoseconds: 3_000_000_000)
+                                throw CancellationError() // Timeout reached! Cancel the stream.
+                            }
+                            
+                            // First task to finish wins, the other gets cancelled
+                            _ = try await group.next()
+                            group.cancelAll()
                         }
+                    } catch {
+                        Logger.services.info("Camera polling loop timed out (3.0s) — user away from desk or camera stuck.")
                     }
                     
                     cameraService.stop()
