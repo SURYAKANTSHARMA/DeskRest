@@ -81,6 +81,9 @@ final class PostureService: PostureServiceProtocol {
             _ = await cameraService.requestPermission()
 
             while self.isMonitoring && !Task.isCancelled {
+                // Reset EMA smoothing so the new 3-frame burst isn't skewed by posture from 90 seconds ago!
+                self.postureAnalyzer.resetSmoothing()
+                
                 do {
                     try await cameraService.start()
                     // Enforce a strict 3.0 second timeout using a TaskGroup race
