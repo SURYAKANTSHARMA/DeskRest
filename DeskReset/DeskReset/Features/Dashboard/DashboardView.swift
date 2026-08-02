@@ -269,6 +269,7 @@ struct DashboardView: View {
         .sheet(isPresented: $showDailySummaryDetail) {
             DailySummaryDetailView(
                 score:            viewModel.todayScore,
+                averageScore:     viewModel.averageScore,
                 scoreLabel:       viewModel.todayScoreLabel,
                 breaksDone:       viewModel.recoverySessions,
                 breakGoal:        viewModel.recoveryGoal,
@@ -443,6 +444,7 @@ struct DashboardView: View {
                 } label: {
                     DashboardDailySummaryCardView(
                         score:            viewModel.todayScore,
+                        averageScore:     viewModel.averageScore,
                         scoreLabel:       viewModel.todayScoreLabel,
                         breaksDone:       viewModel.recoverySessions,
                         breakGoal:        viewModel.recoveryGoal,
@@ -787,6 +789,7 @@ struct HollowActionButton: View {
 private struct DashboardDailySummaryCardView: View {
 
     let score: Int
+    let averageScore: Int
     let scoreLabel: String
     let breaksDone: Int
     let breakGoal: Int
@@ -903,6 +906,20 @@ private struct DashboardDailySummaryCardView: View {
 
             Spacer()
 
+            if averageScore > 0 {
+                HStack(spacing: 3) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 8, weight: .bold))
+                    Text("AVG \(averageScore)")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(Color.brandSecondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Color.brandSecondary.opacity(0.12), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.brandSecondary.opacity(0.25), lineWidth: 1))
+            }
+
             if isMonitoring {
                 HStack(spacing: 4) {
                     Circle()
@@ -960,18 +977,17 @@ private struct DashboardDailySummaryCardView: View {
                 )
                 .rotationEffect(.degrees(-90 + shimmerOffset))
 
-            // Center text
+            // Center text inside 60x60 ring
             VStack(spacing: 0) {
                 Text(score == 0 ? "–" : "\(score)")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.system(size: 19, weight: .bold, design: .rounded))
                     .foregroundStyle(.textPrimary)
                     .contentTransition(.numericText())
                 if score > 0 {
                     Text(scoreLabel)
-                        .font(.system(size: 7, weight: .bold))
+                        .font(.system(size: 7.5, weight: .bold))
                         .foregroundStyle(accentColor)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.6)
                 }
             }
         }
@@ -981,7 +997,7 @@ private struct DashboardDailySummaryCardView: View {
     // MARK: — Stats Column
 
     private var statsColumn: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 4) {
             Label {
                 Text(monitoringUptime == "—" ? "Not monitoring" : "\(monitoringUptime) active")
                     .font(.system(size: 10.5, weight: .semibold))

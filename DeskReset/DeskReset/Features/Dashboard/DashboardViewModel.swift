@@ -22,6 +22,7 @@ final class DashboardViewModel {
 
     /// Card 2: Today's Score
     var todayScore: Int              = 0
+    var averageScore: Int            = 0
     var todayScoreLabel: String      = "—"
     var todayScoreProgress: Double   = 0.0
     var scoreSessionCount: Int       = 0
@@ -131,7 +132,7 @@ final class DashboardViewModel {
             postureService?.updateBaseline(prefs.baseline)
             postureService?.monitoringInterval = prefs.monitoringInterval
 
-            // Card 2: Real average score from PostureLogs
+            // Card 2: Show latest scan score prominently with daily average in label
             let logDescriptor = FetchDescriptor<PostureLog>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
             let allLogs = (try? modelContext.fetch(logDescriptor)) ?? []
             let todayLogs = allLogs.filter { calendar.isDateInToday($0.timestamp) }
@@ -142,16 +143,22 @@ final class DashboardViewModel {
                 lastScanFeedback = "No scans yet today"
             }
             
-            let averageScore: Int
-            if !todayLogs.isEmpty {
-                averageScore = todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
+            let latestScore: Int
+            let avgScore: Int
+            
+            if let firstLog = todayLogs.first {
+                latestScore = firstLog.score
+                avgScore = todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
             } else if let ps = postureService, ps.isMonitoring {
-                averageScore = ps.postureScore
+                latestScore = ps.postureScore
+                avgScore = ps.postureScore
             } else {
-                averageScore = 0
+                latestScore = 0
+                avgScore = 0
             }
             
-            todayScore = averageScore
+            todayScore = latestScore
+            averageScore = avgScore
             todayScoreProgress = Double(todayScore) / 100.0
             todayScoreLabel = scoreLabel(todayScore)
 
