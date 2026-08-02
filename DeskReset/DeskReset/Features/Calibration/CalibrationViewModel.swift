@@ -176,7 +176,6 @@ final class CalibrationViewModel {
             return
         }
 
-        let headOffset = abs(Double(head.point.x - neck.point.x))
         let dxShoulders = Double(rShoulder.point.x - lShoulder.point.x)
         let dyShoulders = Double(rShoulder.point.y - lShoulder.point.y)
         let shoulderTilt = atan2(dyShoulders, dxShoulders) * (180.0 / .pi)
@@ -192,6 +191,9 @@ final class CalibrationViewModel {
         let shoulderWidth = hypot(dxShoulders, dyShoulders)
         let torsoHeight   = max(hypot(dxTorso, dyTorso), 0.05)
         let widthRatio    = shoulderWidth / torsoHeight
+
+        let headDist   = hypot(Double(head.point.x - neck.point.x), Double(head.point.y - neck.point.y))
+        let headOffset = headDist / torsoHeight
         
         let zDiff: Double
         if let lz = lShoulder.zDepth, let rz = rShoulder.zDepth {

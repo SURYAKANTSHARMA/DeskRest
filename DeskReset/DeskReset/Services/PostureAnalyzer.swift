@@ -78,15 +78,12 @@ final class PostureAnalyzer: @unchecked Sendable {
 
         // 2. Compute Raw Instantaneous Metrics
 
-        // A. Forward Head Offset: horizontal distance between Head and Neck
-        let rawHeadOffset = abs(Double(head.point.x - neck.point.x))
-
-        // B. Shoulder Imbalance: angle of line connecting left & right shoulder (in degrees)
+        // A. Forward Head Ratio: Euclidean Head-to-Neck distance normalized by torso height
+        // This ensures the calculation is distance-to-camera invariant!
         let dxShoulders = Double(rShoulder.point.x - lShoulder.point.x)
         let dyShoulders = Double(rShoulder.point.y - lShoulder.point.y)
         let rawShoulderTilt = atan2(dyShoulders, dxShoulders) * (180.0 / .pi)
 
-        // C. Torso Lean: lateral tilt angle of neck -> torso line relative to vertical
         let torsoPoint = snapshot.torso?.point ?? CGPoint(
             x: (lShoulder.point.x + rShoulder.point.x) / 2.0,
             y: (lShoulder.point.y + rShoulder.point.y) / 2.0 - 0.2
@@ -95,9 +92,12 @@ final class PostureAnalyzer: @unchecked Sendable {
         let dyTorso = Double(neck.point.y - torsoPoint.y) // Y increases upward in Vision
         let rawTorsoLean = atan2(dxTorso, max(dyTorso, 0.001)) * (180.0 / .pi)
 
-        // D. Shoulder Width Ratio: shoulder width relative to neck-to-torso height
-        let shoulderWidth = hypot(dxShoulders, dyShoulders)
         let torsoHeight   = max(hypot(dxTorso, dyTorso), 0.05)
+        let headDist      = hypot(Double(head.point.x - neck.point.x), Double(head.point.y - neck.point.y))
+        let rawHeadOffset = headDist / torsoHeight
+
+        // B. Shoulder Width Ratio: shoulder width relative to neck-to-torso height
+        let shoulderWidth = hypot(dxShoulders, dyShoulders)
         let rawWidthRatio = shoulderWidth / torsoHeight
 
         // 3. Smooth Metrics (Exponential Moving Average)
@@ -119,31 +119,30 @@ final class PostureAnalyzer: @unchecked Sendable {
 
         var issues: [PostureIssue] = []
 
-        // Issue 1: Forward Head Posture (relative to calibrated baseline head offset)
-        let targetHeadOffset = baseline.isCalibrated ? baseline.headOffset : 0.0
-        let headOffsetDelta  = abs(smoothedForwardHeadOffset - targetHeadOffset)
+        // Issue 1: Forward Head Posture (head dropping/slouching forward compresses head-to-neck ratio relative to baseline)
+        let targetHeadOffset = baseline.isCalibrated ? baseline.headOffset : 0.35
+        let headCompression  = targetHeadOffset - smoothedForwardHeadOffset
         
         // --- 3D Modifier: Forward Head Verification ---
         var isHeadProtruding = true // Default to true if 3D is not available
         if let hz = head.zDepth, let tz = snapshot.torso?.zDepth {
             // Negative Z is closer to the camera in Vision 3D coordinates.
             // If the head isn't significantly closer to the camera than the torso, they aren't slouching forward.
-            // They might just be leaning their whole body forward straight-backed.
             if hz - tz > -0.05 { // 5cm tolerance
                 isHeadProtruding = false
             }
         }
 
-        if headOffsetDelta > Thresholds.forwardHeadMild {
+        if headCompression > Thresholds.forwardHeadMild {
             if isHeadProtruding {
                 let sev: PostureIssue.Severity =
-                    headOffsetDelta > Thresholds.forwardHeadSevere ? .severe :
-                    (headOffsetDelta > Thresholds.forwardHeadModerate ? .moderate : .mild)
+                    headCompression > Thresholds.forwardHeadSevere ? .severe :
+                    (headCompression > Thresholds.forwardHeadModerate ? .moderate : .mild)
 
                 issues.append(PostureIssue(
                     type: .forwardHead,
                     severity: sev,
-                    description: "Head is forward from your calibrated baseline."
+                    description: "Head is slouched forward from your calibrated baseline."
                 ))
             }
         }

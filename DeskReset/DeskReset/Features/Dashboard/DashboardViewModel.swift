@@ -131,7 +131,7 @@ final class DashboardViewModel {
             postureService?.updateBaseline(prefs.baseline)
             postureService?.monitoringInterval = prefs.monitoringInterval
 
-            // Card 2: Real average score from PostureLogs
+            // Card 2: Show latest scan score prominently with daily average in label
             let logDescriptor = FetchDescriptor<PostureLog>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
             let allLogs = (try? modelContext.fetch(logDescriptor)) ?? []
             let todayLogs = allLogs.filter { calendar.isDateInToday($0.timestamp) }
@@ -142,18 +142,27 @@ final class DashboardViewModel {
                 lastScanFeedback = "No scans yet today"
             }
             
+            let latestScore: Int
             let averageScore: Int
-            if !todayLogs.isEmpty {
+            
+            if let firstLog = todayLogs.first {
+                latestScore = firstLog.score
                 averageScore = todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
             } else if let ps = postureService, ps.isMonitoring {
+                latestScore = ps.postureScore
                 averageScore = ps.postureScore
             } else {
+                latestScore = 0
                 averageScore = 0
             }
             
-            todayScore = averageScore
+            todayScore = latestScore
             todayScoreProgress = Double(todayScore) / 100.0
-            todayScoreLabel = scoreLabel(todayScore)
+            if !todayLogs.isEmpty && todayLogs.count > 1 {
+                todayScoreLabel = "\(scoreLabel(todayScore)) (Avg: \(averageScore))"
+            } else {
+                todayScoreLabel = scoreLabel(todayScore)
+            }
 
         } catch {
             Logger.data.error("Dashboard loadStats error: \(error)")
