@@ -22,6 +22,7 @@ final class DashboardViewModel {
 
     /// Card 2: Today's Score
     var todayScore: Int              = 0
+    var averageScore: Int            = 0
     var todayScoreLabel: String      = "—"
     var todayScoreProgress: Double   = 0.0
     var scoreSessionCount: Int       = 0
@@ -143,26 +144,23 @@ final class DashboardViewModel {
             }
             
             let latestScore: Int
-            let averageScore: Int
+            let avgScore: Int
             
             if let firstLog = todayLogs.first {
                 latestScore = firstLog.score
-                averageScore = todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
+                avgScore = todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
             } else if let ps = postureService, ps.isMonitoring {
                 latestScore = ps.postureScore
-                averageScore = ps.postureScore
+                avgScore = ps.postureScore
             } else {
                 latestScore = 0
-                averageScore = 0
+                avgScore = 0
             }
             
             todayScore = latestScore
+            averageScore = avgScore
             todayScoreProgress = Double(todayScore) / 100.0
-            if !todayLogs.isEmpty && todayLogs.count > 1 {
-                todayScoreLabel = "\(scoreLabel(todayScore)) (Avg: \(averageScore))"
-            } else {
-                todayScoreLabel = scoreLabel(todayScore)
-            }
+            todayScoreLabel = scoreLabel(todayScore)
 
         } catch {
             Logger.data.error("Dashboard loadStats error: \(error)")

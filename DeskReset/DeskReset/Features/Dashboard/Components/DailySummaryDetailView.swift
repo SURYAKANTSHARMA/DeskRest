@@ -13,6 +13,7 @@ struct DailySummaryDetailView: View {
 
     // Data passed in from the card
     let score: Int
+    let averageScore: Int
     let scoreLabel: String
     let breaksDone: Int
     let breakGoal: Int
@@ -174,18 +175,34 @@ struct DailySummaryDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                // Score tier pill
-                HStack(spacing: 5) {
-                    Image(systemName: scoreTierIcon)
-                        .font(.system(size: 11, weight: .bold))
-                    Text(score == 0 ? "Start monitoring to get scored" : scoreLabel + " today")
-                        .font(.system(size: 11, weight: .bold))
+                // Score tier pills
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "scope")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Latest: \(score)")
+                            .font(.system(size: 10.5, weight: .bold))
+                    }
+                    .foregroundStyle(accentColor)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(accentColor.opacity(0.10), in: Capsule())
+                    .overlay(Capsule().strokeBorder(accentColor.opacity(0.25), lineWidth: 1))
+
+                    if averageScore > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chart.line.uptrend.xyaxis")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("Daily Avg: \(averageScore)")
+                                .font(.system(size: 10.5, weight: .bold))
+                        }
+                        .foregroundStyle(Color.brandSecondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Color.brandSecondary.opacity(0.10), in: Capsule())
+                        .overlay(Capsule().strokeBorder(Color.brandSecondary.opacity(0.25), lineWidth: 1))
+                    }
                 }
-                .foregroundStyle(accentColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(accentColor.opacity(0.10), in: Capsule())
-                .overlay(Capsule().strokeBorder(accentColor.opacity(0.25), lineWidth: 1))
             }
         }
         .padding(18)
