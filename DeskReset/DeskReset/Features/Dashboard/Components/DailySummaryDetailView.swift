@@ -15,8 +15,7 @@ struct DailySummaryDetailView: View {
     let score: Int
     let averageScore: Int
     let scoreLabel: String
-    let breaksDone: Int
-    let breakGoal: Int
+    let totalScans: Int
     let monitoringUptime: String
     let topIssue: String?
     let topIssueIcon: String?
@@ -28,7 +27,6 @@ struct DailySummaryDetailView: View {
     @State private var ringAppeared = false
 
     private var scoreProgress: Double { Double(score) / 100.0 }
-    private var breakProgress: Double { breakGoal > 0 ? min(Double(breaksDone) / Double(breakGoal), 1.0) : 0 }
     private var accentColor: Color { Color.postureScoreColor(for: score) }
     private var today: String {
         Date.now.formatted(date: .complete, time: .omitted)
@@ -69,9 +67,6 @@ struct DailySummaryDetailView: View {
                         // ── Stats grid ──
                         statsGrid
 
-                        // ── Break goal tracker ──
-                        breakGoalBlock
-
                         // ── Top Issue / Status ──
                         issueBlock
 
@@ -87,7 +82,7 @@ struct DailySummaryDetailView: View {
                 }
             }
         }
-        .frame(width: 500, height: 600)
+        .frame(width: 500, height: 540)
         .onAppear {
             withAnimation(.easeInOut(duration: 0.85).delay(0.2)) {
                 ringAppeared = true
@@ -100,7 +95,7 @@ struct DailySummaryDetailView: View {
     private var headerRow: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Daily Wellness Summary")
+                Text("Daily Posture Summary")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.textPrimary)
                 Text(today)
@@ -224,16 +219,16 @@ struct DailySummaryDetailView: View {
                 color: .brandPrimary
             )
             statCard(
-                icon: "figure.walk",
-                label: "Breaks Taken",
-                value: "\(breaksDone) of \(breakGoal)",
+                icon: "scope",
+                label: "Checks Checked",
+                value: "\(totalScans)",
                 color: .statusSuccess
             )
             statCard(
-                icon: "checkmark.circle.fill",
-                label: "Break Goal",
-                value: breakProgress >= 1.0 ? "Achieved! 🎉" : "\(Int(breakProgress * 100))%",
-                color: breakProgress >= 1.0 ? .statusSuccess : .brandAccent
+                icon: "chart.bar.fill",
+                label: "Daily Average",
+                value: averageScore > 0 ? "\(averageScore)" : "—",
+                color: Color.postureScoreColor(for: averageScore)
             )
         }
     }
@@ -265,50 +260,6 @@ struct DailySummaryDetailView: View {
         .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1))
     }
 
-    // MARK: — Break Goal Block
-
-    private var breakGoalBlock: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Break Goal Progress", systemImage: "figure.walk.circle")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.textPrimary)
-                Spacer()
-                Text("\(breaksDone) of \(breakGoal) breaks")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.textSecondary)
-            }
-
-            // Segmented progress bar
-            HStack(spacing: 4) {
-                ForEach(0..<breakGoal, id: \.self) { i in
-                    Capsule()
-                        .fill(i < breaksDone ? Color.statusSuccess : Color.brandPrimary.opacity(0.12))
-                        .frame(height: 8)
-                        .animation(.spring(duration: 0.5).delay(Double(i) * 0.04), value: ringAppeared)
-                }
-            }
-
-            if breakProgress >= 1.0 {
-                HStack(spacing: 6) {
-                    Image(systemName: "party.popper.fill")
-                        .foregroundStyle(Color.statusSuccess)
-                    Text("Goal achieved! Great work maintaining healthy breaks today.")
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(Color.statusSuccess)
-                }
-            } else {
-                let remaining = breakGoal - breaksDone
-                Text("\(remaining) more break\(remaining == 1 ? "" : "s") to reach your daily goal.")
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(.textSecondary)
-            }
-        }
-        .padding(16)
-        .background(Color.drCardBackground, in: RoundedRectangle(cornerRadius: 14))
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1))
-    }
 
     // MARK: — Issue Block
 

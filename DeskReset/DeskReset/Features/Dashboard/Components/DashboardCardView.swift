@@ -83,165 +83,165 @@ struct DashboardCardView: View {
     // MARK: — Standard Layout
 
     private var standardLayout: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 6) {
             cardHeader
             Spacer(minLength: 0)
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 if let val = primaryValue {
                     Text(val)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundStyle(.textPrimary)
                         .contentTransition(.numericText())
                 }
                 if let lbl = primaryLabel {
                     Text(lbl)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.textPrimary)
                 }
                 if let sub = secondaryLabel {
                     Text(sub)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(.textSecondary)
                 }
             }
         }
-        .padding(18)
+        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     // MARK: — Progress Layout
 
     private var progressLayout: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top) {
                 cardHeader
                 Spacer()
                 // Mini ring
                 ZStack {
                     Circle()
-                        .stroke(accentColor.opacity(0.18), lineWidth: 5)
+                        .stroke(accentColor.opacity(0.18), lineWidth: 4)
                     Circle()
                         .trim(from: 0, to: progress ?? 0)
-                        .stroke(accentColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .stroke(accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                         .animation(.easeInOut(duration: 0.5), value: progress)
                     Text("\(Int((progress ?? 0) * 100))%")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
                         .foregroundStyle(accentColor)
                 }
-                .frame(width: 46, height: 46)
+                .frame(width: 36, height: 36)
             }
 
             Spacer(minLength: 0)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 if let val = primaryValue {
                     Text(val)
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundStyle(.textPrimary)
                         .contentTransition(.numericText())
                 }
                 if let sub = secondaryLabel {
                     Text(sub)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(.textSecondary)
                 }
             }
         }
-        .padding(18)
+        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     // MARK: — Status Layout
 
     private var statusLayout: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 6) {
             cardHeader
             Spacer(minLength: 0)
             HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .center, spacing: 6) {
                         if let val = primaryValue {
                             Text(val)
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
                                 .foregroundStyle(.textPrimary)
                         }
                         if let badge = badge, let bc = badgeColor {
                             Text(badge.capitalized)
-                                .font(.system(size: 11, weight: .bold))
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4)
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
                                 .background(bc.opacity(0.18), in: Capsule())
                                 .foregroundStyle(bc)
                         }
                     }
                     if let sub = secondaryLabel {
                         Text(sub)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: 11.5, weight: .medium))
                             .foregroundStyle(.textSecondary)
                     }
                 }
-                Spacer(minLength: 8)
-                // Glowing posture pulse wave (Option A Cyberpunk Glass feature)
+                Spacer(minLength: 6)
+                // Glowing posture pulse wave
                 Image(systemName: "waveform.path.ecg")
-                    .font(.system(size: 26, weight: .medium))
+                    .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(Color.brandAccent)
-                    .shadow(color: Color.brandAccent.opacity(0.4), radius: 6)
+                    .shadow(color: Color.brandAccent.opacity(0.4), radius: 5)
             }
         }
-        .padding(18)
+        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     // MARK: — Timeline Layout
 
     private var timelineLayout: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 6) {
             cardHeader
             Spacer(minLength: 0)
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 3) {
                 if let val = primaryValue {
                     Text(val)
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(.textPrimary)
                 }
                 if let lbl = primaryLabel {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.forward.circle")
-                            .font(.system(size: 11.5, weight: .semibold))
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(accentColor)
                         Text(lbl)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(.textPrimary)
                     }
                 }
                 if let sub = secondaryLabel {
                     Text(sub)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.textSecondary)
                 }
             }
         }
-        .padding(18)
+        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     // MARK: — Shared Sub-views
 
     private var cardHeader: some View {
-        HStack(spacing: 10) {
-            // Icon squircle tile (Option A: drIconTileBackground)
+        HStack(spacing: 8) {
+            // Icon squircle tile
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 8)
                     .fill(Color.drIconTileBackground)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 30, height: 30)
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(accentColor)
             }
 
             Text(title)
-                .font(.system(size: 14.5, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.textPrimary)
 
             Spacer()

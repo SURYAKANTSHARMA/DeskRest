@@ -19,22 +19,10 @@ struct SettingsView: View {
         TabView {
             GeneralSettingsView(
                 launchAtLogin: $viewModel.launchAtLogin,
-                showInDock: $viewModel.showInDock,
-                dailyBreakGoal: $viewModel.dailyBreakGoal,
-                defaultBreakType: $viewModel.defaultBreakType
+                showInDock: $viewModel.showInDock
             )
             .tabItem {
                 Label("General", systemImage: "gearshape")
-            }
-
-            BreakSettingsView(
-                breakInterval: $viewModel.breakInterval,
-                shortBreakDuration: $viewModel.shortBreakDuration,
-                longBreakDuration: $viewModel.longBreakDuration,
-                microBreakDuration: $viewModel.microBreakDuration
-            )
-            .tabItem {
-                Label("Breaks", systemImage: "figure.walk")
             }
 
             NotificationSettingsView(
@@ -52,16 +40,10 @@ struct SettingsView: View {
             viewModel.configure(with: serviceLocator)
             viewModel.loadPreferences(modelContext: modelContext)
         }
-        .onChange(of: viewModel.breakInterval)        { _, _ in save() }
-        .onChange(of: viewModel.shortBreakDuration)   { _, _ in save() }
-        .onChange(of: viewModel.longBreakDuration)    { _, _ in save() }
-        .onChange(of: viewModel.microBreakDuration)   { _, _ in save() }
         .onChange(of: viewModel.notificationsEnabled) { _, _ in save() }
         .onChange(of: viewModel.soundEnabled)         { _, _ in save() }
         .onChange(of: viewModel.launchAtLogin)        { _, _ in save() }
         .onChange(of: viewModel.showInDock)           { _, _ in save() }
-        .onChange(of: viewModel.dailyBreakGoal)       { _, _ in save() }
-        .onChange(of: viewModel.defaultBreakType)     { _, _ in save() }
     }
 
     private func save() {

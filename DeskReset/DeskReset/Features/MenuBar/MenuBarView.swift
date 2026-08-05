@@ -100,13 +100,6 @@ struct MenuBarView: View {
                 )
                 Divider().frame(height: 30)
                 statPill(
-                    icon: "arrow.clockwise",
-                    label: "Recovery",
-                    value: "\(viewModel.recoverySessions)",
-                    color: .brandAccent
-                )
-                Divider().frame(height: 30)
-                statPill(
                     icon: "clock",
                     label: "Last check",
                     value: viewModel.lastCheckText,

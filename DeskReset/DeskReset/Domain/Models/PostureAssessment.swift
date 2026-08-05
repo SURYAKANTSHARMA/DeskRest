@@ -36,7 +36,7 @@ public struct PostureIssue: Sendable, Equatable, Identifiable {
     public enum IssueType: String, Sendable, CaseIterable {
         case forwardHead      = "Forward Head Posture"
         case roundedShoulders  = "Rounded Shoulders"
-        case shoulderImbalance = "Shoulder Imbalance"
+        case shoulderImbalance = "Uneven Shoulders"
         case torsoLean        = "Torso Lean"
 
         public var icon: String {

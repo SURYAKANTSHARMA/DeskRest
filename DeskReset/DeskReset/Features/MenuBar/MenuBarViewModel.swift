@@ -41,7 +41,6 @@ final class MenuBarViewModel {
     var monitoringState: MonitoringState = .inactive
     var postureScore: Int                = 0
     var lastCheckTime: Date?             = nil
-    var recoverySessions: Int            = 0
     var statusMessage: String            = "Not monitoring"
     var todayScore: Int                  = 0
 
