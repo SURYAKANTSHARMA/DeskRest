@@ -24,6 +24,7 @@ final class PostureService: PostureServiceProtocol {
     var baseline: PostureBaseline           = .uncalibrated
     var monitoringInterval: TimeInterval    = 90
     var nextCheckTime: Date?                = nil
+    var lastRunStatus: LastRunStatus        = .noScanYet
 
     var statusDescription: String {
         guard isMonitoring else { return "Monitoring stopped" }
@@ -107,6 +108,7 @@ final class PostureService: PostureServiceProtocol {
                                                 self.currentSnapshot   = snapshot
                                                 self.currentAssessment = assessment
                                                 self.postureScore  = assessment.score
+                                                self.lastRunStatus = .success
                                                 
                                                 let log = PostureLog(score: assessment.score, issuesSummary: assessment.summaryText)
                                                 self.modelContext?.insert(log)
@@ -130,6 +132,16 @@ final class PostureService: PostureServiceProtocol {
                         }
                     } catch {
                         Logger.services.info("Camera polling loop timed out (3.0s) — user away from desk or camera stuck.")
+                        await MainActor.run {
+                            self.currentSnapshot = nil
+                            self.currentAssessment = nil
+                            self.postureScore = 0
+                            self.lastRunStatus = .personNotDetected
+                            
+                            let log = PostureLog(score: 0, issuesSummary: "Away")
+                            self.modelContext?.insert(log)
+                            try? self.modelContext?.save()
+                        }
                     }
                     
                     cameraService.stop()
@@ -157,6 +169,7 @@ final class PostureService: PostureServiceProtocol {
         currentAssessment = nil
         postureScore = 100
         nextCheckTime = nil
+        lastRunStatus = .noScanYet
         cameraService?.stop()
         Logger.services.info("PostureService: stopMonitoring()")
     }

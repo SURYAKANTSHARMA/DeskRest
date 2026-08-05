@@ -8,11 +8,34 @@ import Observation
 import SwiftData
 import OSLog
 
+struct DailyHistoryReport: Identifiable, Sendable {
+    var id: Date { date }
+    let date: Date
+    let averageScore: Int
+    let totalScans: Int
+    let topIssue: String?
+    let topIssueIcon: String?
+}
+
+struct RecommendationItem: Identifiable, Sendable {
+    var id: String { title }
+    let title: String
+    let isGood: Bool
+    let details: String
+}
+
+struct CategoryRate: Identifiable, Sendable {
+    var id: String { name }
+    let name: String
+    let shortName: String
+    let goodRate: Double   // 0.0 – 1.0
+}
+
 @Observable
 @MainActor
 final class DashboardViewModel {
 
-    // MARK: - Card State (the 5 required cards)
+    // MARK: - Card & Recommendation State
 
     /// Card 1: Current Status
     var currentStatus: String        = "Ready"
@@ -32,12 +55,6 @@ final class DashboardViewModel {
     var monitoringUptime: String     = "—"
     var monitoringSince: Date?       = nil
 
-    /// Card 4: Recovery Sessions
-    var recoverySessions: Int        = 0
-    var recoveryGoal: Int            = 8
-    var recoveryProgress: Double     = 0.0
-    var lastRecovery: String         = "None today"
-
     /// Card 5: Last Check Time
     var lastCheckTime: Date?         = nil
     var lastCheckDisplay: String     = "Never"
@@ -45,8 +62,25 @@ final class DashboardViewModel {
     var totalChecks: Int             = 0
     var lastScanFeedback: String     = "Waiting for first scan..."
 
+    // MARK: - Posture Recommendations (directly on dashboard)
+    var lastCheckRecommendations: [RecommendationItem] = []
+    var overallStrength: String = "No checks recorded yet"
+    var overallStruggle: String = "No issues recorded yet"
+    var overallWorkspaceAdvice: String = "Start monitoring to receive workstation setup advice."
+    var todayScansCount: Int = 0
+    var todayAwayCount: Int = 0
+    /// Per-category performance across all of today's valid scans
+    var categoryRates: [CategoryRate] = []
+
+    /// How the last scan score compares to today's average (positive = above avg)
+    var scoreTrendVsAverage: Int { todayScore - averageScore }
+
+    // MARK: - History Stats
+    var totalScansCount: Int = 0
+    var averagePostureScore: Int = 0
+    var dailyReports: [DailyHistoryReport] = []
+
     // MARK: - Other State
-    var recentSessions: [BreakSession] = []
     var isLoading: Bool              = false
     var isCalibrated: Bool           = false
     var selectedCardID: DashboardCardID? = nil
@@ -73,7 +107,7 @@ final class DashboardViewModel {
     var motivationalTip: String {
         guard let issues = postureService?.currentAssessment?.issues, !issues.isEmpty else {
             if todayScore >= 80 { return "Excellent posture today! Keep it going." }
-            if todayScore >= 60 { return "Good work — take a short break every hour." }
+            if todayScore >= 60 { return "Good work — stay consistent." }
             if todayScore == 0  { return "Start monitoring to track your posture score." }
             return "Stay consistent — small improvements compound over time."
         }
@@ -87,7 +121,6 @@ final class DashboardViewModel {
     }
 
     // MARK: - Private Services
-    private var breakService: (any BreakServiceProtocol)?
     private var postureService: (any PostureServiceProtocol)?
     private var uiTimer: Timer?
 
@@ -96,7 +129,6 @@ final class DashboardViewModel {
 
     // MARK: - Configure
     func configure(with serviceLocator: ServiceLocator) {
-        self.breakService  = serviceLocator.breakService
         self.postureService = serviceLocator.postureService
         Logger.ui.info("DashboardViewModel configured")
         refreshMonitoringState()
@@ -107,22 +139,7 @@ final class DashboardViewModel {
     func loadStats(modelContext: ModelContext) {
         isLoading = true
         do {
-            let descriptor = FetchDescriptor<BreakSession>(
-                sortBy: [SortDescriptor(\.startDate, order: .reverse)]
-            )
-            let allSessions = try modelContext.fetch(descriptor)
-            let calendar    = Calendar.current
-            let todaySessions = allSessions.filter { calendar.isDateInToday($0.startDate) }
-
-            // Card 4: Recovery Sessions
-            let completedToday = todaySessions.filter { $0.wasCompleted }
-            recoverySessions   = completedToday.count
-            recoveryProgress   = min(Double(recoverySessions) / Double(recoveryGoal), 1.0)
-            lastRecovery       = completedToday.first.map {
-                $0.startDate.formatted(.relative(presentation: .named))
-            } ?? "None today"
-
-            recentSessions = Array(allSessions.prefix(10))
+            let calendar = Calendar.current
 
             // Load UserPreferences baseline
             let prefDescriptor = FetchDescriptor<UserPreferences>()
@@ -132,21 +149,32 @@ final class DashboardViewModel {
             postureService?.updateBaseline(prefs.baseline)
             postureService?.monitoringInterval = prefs.monitoringInterval
 
-            // Card 2: Show latest scan score prominently with daily average in label
+            // Fetch posture logs
             let logDescriptor = FetchDescriptor<PostureLog>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
             let allLogs = (try? modelContext.fetch(logDescriptor)) ?? []
-            let todayLogs = allLogs.filter { calendar.isDateInToday($0.timestamp) }
+            let todayLogs = allLogs.filter { calendar.isDateInToday($0.timestamp) && $0.issuesSummary != "Away" }
+            let todayAwayLogs = allLogs.filter { calendar.isDateInToday($0.timestamp) && $0.issuesSummary == "Away" }
             
-            if let lastLog = todayLogs.first, let feedback = lastLog.issuesSummary {
-                lastScanFeedback = feedback
+            // Update feedback and last status
+            if let ps = postureService {
+                if ps.lastRunStatus == .personNotDetected {
+                    lastScanFeedback = "No person detected in frame"
+                } else if let lastLog = todayLogs.first, let feedback = lastLog.issuesSummary {
+                    lastScanFeedback = feedback
+                } else {
+                    lastScanFeedback = "Waiting for first scan..."
+                }
             } else {
-                lastScanFeedback = "No scans yet today"
+                lastScanFeedback = "Service offline"
             }
             
             let latestScore: Int
             let avgScore: Int
             
-            if let firstLog = todayLogs.first {
+            if let ps = postureService, ps.lastRunStatus == .personNotDetected {
+                latestScore = 0
+                avgScore = todayLogs.isEmpty ? 0 : todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
+            } else if let firstLog = todayLogs.first {
                 latestScore = firstLog.score
                 avgScore = todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
             } else if let ps = postureService, ps.isMonitoring {
@@ -161,11 +189,219 @@ final class DashboardViewModel {
             averageScore = avgScore
             todayScoreProgress = Double(todayScore) / 100.0
             todayScoreLabel = scoreLabel(todayScore)
+            todayScansCount = todayLogs.count
+            todayAwayCount = todayAwayLogs.count
+
+            // History tab: scans & daily reports (excluding Away logs)
+            let validLogs = allLogs.filter { $0.issuesSummary != "Away" }
+            totalScansCount = validLogs.count
+            averagePostureScore = validLogs.isEmpty ? 0 : validLogs.reduce(0) { $0 + $1.score } / validLogs.count
+
+            // Group logs by day
+            let logsByDate = Dictionary(grouping: allLogs) { log in
+                calendar.startOfDay(for: log.timestamp)
+            }
+            let sortedDates = logsByDate.keys.sorted(by: >)
+
+            dailyReports = sortedDates.compactMap { date in
+                let dayLogs = logsByDate[date] ?? []
+                let validDayLogs = dayLogs.filter { $0.issuesSummary != "Away" }
+                if validDayLogs.isEmpty { return nil }
+                
+                let avg = validDayLogs.reduce(0) { $0 + $1.score } / validDayLogs.count
+                
+                // Identify top issue for that day
+                var issueCounts: [String: Int] = [:]
+                var issueIcons: [String: String] = [:]
+                
+                for log in validDayLogs {
+                    if let summary = log.issuesSummary, !summary.isEmpty, !summary.contains("Great posture") && !summary.contains("No issues") {
+                        let cleanSummary = summary.replacingOccurrences(of: "Detected: ", with: "")
+                        let issueParts = cleanSummary.components(separatedBy: ", ")
+                        for issueName in issueParts {
+                            var trimmed = issueName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if trimmed == "Shoulder Imbalance" {
+                                trimmed = "Uneven Shoulders"
+                            }
+                            if !trimmed.isEmpty {
+                                issueCounts[trimmed, default: 0] += 1
+                                if let issueType = PostureIssue.IssueType(rawValue: trimmed) {
+                                    issueIcons[trimmed] = issueType.icon
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                let sortedIssues = issueCounts.sorted { $0.value > $1.value }
+                let topIssue = sortedIssues.first?.key
+                let topIcon = topIssue != nil ? issueIcons[topIssue!] : nil
+
+                return DailyHistoryReport(
+                    date: date,
+                    averageScore: avg,
+                    totalScans: validDayLogs.count,
+                    topIssue: topIssue,
+                    topIssueIcon: topIcon
+                )
+            }
+
+            // Calculate direct dashboard recommendations
+            calculateRecommendations(todayLogs: todayLogs)
 
         } catch {
             Logger.data.error("Dashboard loadStats error: \(error)")
         }
         isLoading = false
+    }
+
+    // MARK: - Calculate Recommendations
+
+    private func calculateRecommendations(todayLogs: [PostureLog]) {
+        guard let ps = postureService else { return }
+        
+        // 1. Last run recommendations
+        if ps.lastRunStatus == .personNotDetected {
+            lastCheckRecommendations = []
+        } else if ps.lastRunStatus == .noScanYet {
+            lastCheckRecommendations = []
+        } else if let assessment = ps.currentAssessment {
+            var items: [RecommendationItem] = []
+            
+            // Check Head Position
+            let headIssue = assessment.issues.first(where: { $0.type == .forwardHead })
+            items.append(RecommendationItem(
+                title: "Head Alignment",
+                isGood: headIssue == nil,
+                details: headIssue?.description ?? "Head and neck vertically aligned"
+            ))
+            
+            // Check Shoulders
+            let shouldersIssue = assessment.issues.first(where: { $0.type == .shoulderImbalance })
+            items.append(RecommendationItem(
+                title: "Shoulder Level",
+                isGood: shouldersIssue == nil,
+                details: shouldersIssue?.description ?? "Shoulders level and balanced"
+            ))
+            
+            // Check Upper Back
+            let upperBackIssue = assessment.issues.first(where: { $0.type == .roundedShoulders })
+            items.append(RecommendationItem(
+                title: "Upper Back",
+                isGood: upperBackIssue == nil,
+                details: upperBackIssue?.description ?? "Chest open, shoulders rolled back"
+            ))
+            
+            // Check Torso
+            let torsoIssue = assessment.issues.first(where: { $0.type == .torsoLean })
+            items.append(RecommendationItem(
+                title: "Torso Center",
+                isGood: torsoIssue == nil,
+                details: torsoIssue?.description ?? "Torso straight and centered"
+            ))
+            
+            lastCheckRecommendations = items
+        } else {
+            lastCheckRecommendations = []
+        }
+        
+        // 2. Overall trend recommendations (using all of today's logs)
+        if todayLogs.isEmpty {
+            overallStrength = "—"
+            overallStruggle = "—"
+            overallWorkspaceAdvice = "Start monitoring to receive daily pattern insights."
+            return
+        }
+        
+        var headCorrect = 0
+        var shouldersCorrect = 0
+        var upperBackCorrect = 0
+        var torsoCorrect = 0
+        
+        var headIssuesCount = 0
+        var shouldersIssuesCount = 0
+        var upperBackIssuesCount = 0
+        var torsoIssuesCount = 0
+        
+        let totalScansToday = todayLogs.count
+        
+        for log in todayLogs {
+            let summary = log.issuesSummary ?? ""
+            
+            if summary.contains(PostureIssue.IssueType.forwardHead.rawValue) {
+                headIssuesCount += 1
+            } else {
+                headCorrect += 1
+            }
+            
+            if summary.contains(PostureIssue.IssueType.shoulderImbalance.rawValue) || summary.contains("Shoulder Imbalance") {
+                shouldersIssuesCount += 1
+            } else {
+                shouldersCorrect += 1
+            }
+            
+            if summary.contains(PostureIssue.IssueType.roundedShoulders.rawValue) {
+                upperBackIssuesCount += 1
+            } else {
+                upperBackCorrect += 1
+            }
+            
+            if summary.contains(PostureIssue.IssueType.torsoLean.rawValue) {
+                torsoIssuesCount += 1
+            } else {
+                torsoCorrect += 1
+            }
+        }
+        
+        let categories = [
+            ("Head Alignment", Double(headCorrect) / Double(totalScansToday)),
+            ("Shoulder Level", Double(shouldersCorrect) / Double(totalScansToday)),
+            ("Upper Back", Double(upperBackCorrect) / Double(totalScansToday)),
+            ("Torso Center", Double(torsoCorrect) / Double(totalScansToday))
+        ]
+
+        let safe = Double(totalScansToday)
+        categoryRates = [
+            CategoryRate(name: "Head Alignment", shortName: "Head",      goodRate: Double(headCorrect)       / safe),
+            CategoryRate(name: "Shoulder Level", shortName: "Shoulders", goodRate: Double(shouldersCorrect)  / safe),
+            CategoryRate(name: "Upper Back",     shortName: "Back",      goodRate: Double(upperBackCorrect)  / safe),
+            CategoryRate(name: "Torso Center",   shortName: "Torso",     goodRate: Double(torsoCorrect)      / safe),
+        ]
+        
+        let sortedSuccess = categories.sorted { $0.1 > $1.1 }
+        if let best = sortedSuccess.first {
+            overallStrength = "\(best.0) (correct in \(Int(best.1 * 100))% of scans)"
+        } else {
+            overallStrength = "No data"
+        }
+        
+        let struggles = [
+            (PostureIssue.IssueType.forwardHead, headIssuesCount),
+            (PostureIssue.IssueType.shoulderImbalance, shouldersIssuesCount),
+            (PostureIssue.IssueType.roundedShoulders, upperBackIssuesCount),
+            (PostureIssue.IssueType.torsoLean, torsoIssuesCount)
+        ]
+        
+        let sortedStruggles = struggles.sorted { $0.1 > $1.1 }
+        if let worst = sortedStruggles.first, worst.1 > 0 {
+            let issueType = worst.0
+            let percent = Int(Double(worst.1) / Double(totalScansToday) * 100)
+            overallStruggle = "\(issueType.rawValue) (flagged in \(percent)% of scans)"
+            
+            switch issueType {
+            case .forwardHead:
+                overallWorkspaceAdvice = "Raise your monitor so the top of the screen is at eye level. This prevents your neck from drifting forward."
+            case .roundedShoulders:
+                overallWorkspaceAdvice = "Pull your keyboard and mouse closer so your elbows can rest comfortably by your sides at a 90° angle."
+            case .shoulderImbalance:
+                overallWorkspaceAdvice = "Avoid leaning on one armrest or side of your desk. Ensure your chair height is balanced."
+            case .torsoLean:
+                overallWorkspaceAdvice = "Distribute your weight evenly on both sit bones and place feet flat on the floor. Lumbar support helps."
+            }
+        } else {
+            overallStruggle = "No posture issues detected today!"
+            overallWorkspaceAdvice = "Your workstation setup is optimal! Keep monitoring to maintain this alignment."
+        }
     }
 
     // MARK: - Monitoring State Sync
@@ -255,11 +491,6 @@ final class DashboardViewModel {
 
     // MARK: - Actions
 
-    func takeBreakNow() async {
-        await breakService?.startBreak(type: .short)
-        await breakService?.endBreak()
-    }
-
     func completeOnboarding() {
         UserDefaults.standard.set(true, forKey: "dr_onboarding_complete")
         showOnboarding = false
@@ -281,5 +512,5 @@ final class DashboardViewModel {
 // MARK: — Card IDs
 
 enum DashboardCardID: String, Hashable {
-    case currentStatus, todayScore, monitoringState, recoverySessions, lastCheckTime
+    case currentStatus, todayScore, monitoringState, lastCheckTime
 }
