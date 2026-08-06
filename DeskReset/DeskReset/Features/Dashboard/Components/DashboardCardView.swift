@@ -132,43 +132,57 @@ struct DashboardCardView: View {
     // MARK: — Progress Layout
 
     private var progressLayout: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top) {
+        HStack(alignment: .top, spacing: 10) {
+            // ── Left: header + big score ───────────────────────────────
+            VStack(alignment: .leading, spacing: 0) {
                 cardHeader
-                Spacer()
-                // Mini ring
-                ZStack {
-                    Circle()
-                        .stroke(accentColor.opacity(0.18), lineWidth: 4)
-                    Circle()
-                        .trim(from: 0, to: progress ?? 0)
-                        .stroke(accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.5), value: progress)
-                    Text("\(Int((progress ?? 0) * 100))%")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                Spacer(minLength: 10)
+                VStack(alignment: .leading, spacing: 3) {
+                    if let val = primaryValue {
+                        Text(val)
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundStyle(.textPrimary)
+                            .contentTransition(.numericText())
+                    }
+                    if let sub = secondaryLabel {
+                        Text(sub)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.textSecondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            // ── Right: progress ring ───────────────────────────────
+            ZStack {
+                // Track ring
+                Circle()
+                    .stroke(accentColor.opacity(0.14), lineWidth: 5.5)
+                // Fill arc — solid colour with glow
+                Circle()
+                    .trim(from: 0, to: CGFloat(progress ?? 0))
+                    .stroke(accentColor,
+                            style: StrokeStyle(lineWidth: 5.5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(duration: 0.9), value: progress)
+                    .shadow(color: accentColor.opacity(0.50), radius: 6)
+                // Centre label
+                VStack(spacing: 0) {
+                    Text("\(Int((progress ?? 0) * 100))")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(accentColor)
-                }
-                .frame(width: 36, height: 36)
-            }
-
-            Spacer(minLength: 0)
-
-            VStack(alignment: .leading, spacing: 2) {
-                if let val = primaryValue {
-                    Text(val)
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundStyle(.textPrimary)
-                        .contentTransition(.numericText())
-                }
-                if let sub = secondaryLabel {
-                    Text(sub)
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(.textSecondary)
+                    Text("%")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(accentColor.opacity(0.65))
                 }
             }
+            .frame(width: 52, height: 52)
+            .padding(.top, 4)
         }
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -250,19 +264,25 @@ struct DashboardCardView: View {
 
     private var cardHeader: some View {
         HStack(spacing: 8) {
-            // Icon squircle tile
+            // Icon tile — accent-matched background with border
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.drIconTileBackground)
-                    .frame(width: 30, height: 30)
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(accentColor.opacity(0.12))
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9)
+                            .strokeBorder(accentColor.opacity(0.22), lineWidth: 1)
+                    )
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(accentColor)
             }
 
             Text(title)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.textPrimary)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
             Spacer()
         }

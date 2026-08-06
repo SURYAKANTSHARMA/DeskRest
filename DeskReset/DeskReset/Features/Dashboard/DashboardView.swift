@@ -16,6 +16,7 @@ struct DashboardView: View {
     @State private var viewModel = DashboardViewModel()
     @State private var selectedSidebar: SidebarItem = .overview
     @State private var showCalibrationSheet: Bool = false
+    @State private var monitoringDotPulse: Bool = false
 
     // MARK: — Sidebar Items
 
@@ -56,6 +57,7 @@ struct DashboardView: View {
                 // .prominentDetail keeps detail pane dominant; sidebar can't eat into its space
                 .navigationSplitViewStyle(.prominentDetail)
                 .frame(minWidth: 760, idealWidth: 960, maxWidth: 1400, minHeight: 490)
+                .navigationTitle("")
                 .onAppear {
                     viewModel.configure(with: serviceLocator)
                     viewModel.loadStats(modelContext: modelContext)
@@ -113,14 +115,29 @@ struct DashboardView: View {
 
     private var sidebarHeader: some View {
         HStack(spacing: 10) {
-            // App icon — rendered at full size, its own squircle shape shows naturally
-            Image(nsImage: NSImage(named: NSImage.applicationIconName)!)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 30, height: 30)
-                .shadow(color: Color(red: 124/255, green: 58/255, blue: 237/255).opacity(0.4), radius: 4, y: 2)
-
-            // Use fixedSize(false) so text truncates inside the column rather than overflows
+            // SwiftUI-drawn logo — crisp squircle matching the AppIcon at any size
+            ZStack {
+                if let appIcon = NSImage(named: "AppIcon") {
+                    Image(nsImage: appIcon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .shadow(color: Color.black.opacity(0.15), radius: 2, y: 1)
+                } else {
+                    Image("OnboardingPosture")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 26, height: 26)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.drGlassSpecularBorder, lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.15), radius: 2, y: 1)
+                }
+            }
+            // Truncate text inside column so it never overflows the sidebar
             VStack(alignment: .leading, spacing: 0) {
                 Text("DeskReset")
                     .font(.headline)
@@ -147,9 +164,17 @@ struct DashboardView: View {
                     .fill(viewModel.monitoringState == .active ? Color.brandSecondary : Color.textTertiary)
                     .frame(width: 8, height: 8)
                     .shadow(
-                        color: viewModel.monitoringState == .active ? Color.brandSecondary.opacity(0.8) : .clear,
-                        radius: 5
+                        color: viewModel.monitoringState == .active
+                            ? Color.brandSecondary.opacity(monitoringDotPulse ? 1.0 : 0.2)
+                            : .clear,
+                        radius: monitoringDotPulse ? 10 : 2
                     )
+                    .onAppear {
+                        guard viewModel.monitoringState == .active else { return }
+                        withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) {
+                            monitoringDotPulse = true
+                        }
+                    }
                 Text(viewModel.monitoringState.rawValue)
                     .font(.system(size: 13.5, weight: .bold))
                     .foregroundStyle(.textPrimary)
@@ -221,15 +246,7 @@ struct DashboardView: View {
             .buttonStyle(.plain)
             .animation(.easeInOut(duration: 0.2), value: viewModel.monitoringState)
 
-            // Posture chip
-            HStack(spacing: 5) {
-                Image(systemName: "camera.viewfinder")
-                    .font(.caption2)
-                    .foregroundStyle(Color.brandSecondary)
-                Text("Posture Detection — Active")
-                    .font(.caption2)
-            }
-            .foregroundStyle(.textTertiary)
+            // (Posture Detection label removed — redundant)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -249,16 +266,10 @@ struct DashboardView: View {
 
     private var overviewContent: some View {
         VStack(spacing: 0) {
-
-            // ── Fixed header ─────────────────────────────────────────────
-            // Sits completely outside the scroll context so it can NEVER
-            // overlap cards or the suggestions panel.
             pageHeader
                 .padding(.horizontal, 26)
-                .padding(.top, 18)
-                .padding(.bottom, 14)
-
-            Divider().opacity(0.25)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
 
             // ── Scrollable body ──────────────────────────────────────────
             ScrollView {
@@ -270,8 +281,9 @@ struct DashboardView: View {
                     postureAdvisorPanel
                 }
                 .padding(.horizontal, 26)
-                .padding(.vertical, 20)
+                .padding(.vertical, 16)
             }
+            .background(dashboardBackground)
         }
         .sheet(isPresented: $showCalibrationSheet) {
             CalibrationView()
@@ -329,27 +341,47 @@ struct DashboardView: View {
             .buttonStyle(.plain)
         }
         .padding(14)
-        .background(Color.drCardBackground, in: RoundedRectangle(cornerRadius: 14))
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.brandSecondary.opacity(colorScheme == .dark ? 0.05 : 0.03))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(LinearGradient(
+                    colors: [Color.white.opacity(0.12), Color.white.opacity(0)],
+                    startPoint: .top, endPoint: .center
+                ))
+                .allowsHitTesting(false)
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1)
+                .strokeBorder(Color.brandSecondary.opacity(0.22), lineWidth: 1)
         )
+        .overlay(alignment: .leading) {
+            Capsule()
+                .fill(Color.brandSecondary)
+                .frame(width: 3)
+                .padding(.vertical, 6)
+        }
     }
 
-    // Page title + formatted date + Live Status Badge & Next check subtitle
+    // MARK: — Page Header
+
     private var pageHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+
+            // ── Title row ────────────────────────────────────────────────
             HStack(alignment: .center, spacing: 12) {
                 Text("Dashboard")
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(.textPrimary)
-                
+
                 liveStatusBadge
-                
+
                 Spacer()
-                
-                // Glassmorphic Refresh button
+
+                // Refresh button
                 Button {
                     viewModel.loadStats(modelContext: modelContext)
                     viewModel.refreshMonitoringState()
@@ -358,11 +390,7 @@ struct DashboardView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.buttonIconAccent)
                         .padding(7)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.drCardBackground)
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        )
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
                                 .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1)
@@ -371,76 +399,113 @@ struct DashboardView: View {
                 .buttonStyle(.plain)
                 .help("Refresh dashboard")
             }
-            
-            // Subtitle: plain HStack with concise chip labels — no scroll, no frame collapse
-            HStack(spacing: 6) {
-                statusChip(
-                    icon: "calendar",
-                    text: Date.now.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)),
-                    color: .brandPrimary
-                )
-                
-                if viewModel.monitoringState == .active {
-                    statusChip(
-                        icon: "stopwatch",
-                        text: "Next: \(viewModel.nextCheckIn.replacingOccurrences(of: "in ", with: ""))",
-                        color: .brandSecondary
-                    )
-                }
-                
-                statusChip(
-                    icon: "timer",
-                    text: "Active: \(viewModel.monitoringUptime == "—" ? "0m" : viewModel.monitoringUptime)",
-                    color: .brandSecondary
-                )
-                
-                statusChip(
-                    icon: "checkmark.circle",
-                    text: "\(viewModel.todayScansCount) scanned",
-                    color: .statusSuccess
-                )
-                
-                if viewModel.todayAwayCount > 0 {
-                    statusChip(
-                        icon: "person.slash",
-                        text: "\(viewModel.todayAwayCount) away",
-                        color: .statusWarning
-                    )
-                }
-                
-                Spacer()
-            }
-            .padding(.top, 4)
+
+            // ── Stats metadata bar ───────────────────────────────────────
+            headerMetaBar
         }
     }
 
-    private func statusChip(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(color)
-            
-            Text(text)
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(.textPrimary)
-                .lineLimit(1)
-                .fixedSize()
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3.5)
-        .background(color.opacity(colorScheme == .dark ? 0.08 : 0.05))
-        .clipShape(Capsule())
-        .overlay(
+    private var headerMetaBar: some View {
+        HStack(alignment: .center, spacing: 14) {
+            // ── Left accent bar ──────────────────────────────────────
             Capsule()
-                .strokeBorder(color.opacity(colorScheme == .dark ? 0.22 : 0.15), lineWidth: 1)
+                .fill(LinearGradient(
+                    colors: [Color.brandPrimary, Color.brandSecondary],
+                    startPoint: .top, endPoint: .bottom
+                ))
+                .frame(width: 3, height: 36)
+
+            // ── Content ──────────────────────────────────────────────
+            VStack(alignment: .leading, spacing: 5) {
+                // Row 1: Date + Uptime + Next check
+                HStack(spacing: 0) {
+                    metaItem(
+                        icon: "calendar",
+                        text: Date.now.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)),
+                        color: .brandPrimary
+                    )
+                    metaDot()
+                    metaItem(
+                        icon: "timer",
+                        text: viewModel.monitoringUptime == "—" ? "Not active" : viewModel.monitoringUptime + " active",
+                        color: .brandSecondary
+                    )
+                    if viewModel.monitoringState == .active {
+                        metaDot()
+                        metaItem(
+                            icon: "stopwatch",
+                            text: "Next " + viewModel.nextCheckIn,
+                            color: .brandSecondary
+                        )
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                // Row 2: Scans + Away (hidden when no data yet)
+                if viewModel.todayScansCount > 0 || viewModel.todayAwayCount > 0 {
+                    HStack(spacing: 0) {
+                        metaItem(
+                            icon: "checkmark.circle.fill",
+                            text: "\(viewModel.todayScansCount) scan\(viewModel.todayScansCount == 1 ? "" : "s") today",
+                            color: .statusSuccess
+                        )
+                        if viewModel.todayAwayCount > 0 {
+                            metaDot()
+                            metaItem(
+                                icon: "person.slash.fill",
+                                text: "\(viewModel.todayAwayCount) away",
+                                color: .statusWarning
+                            )
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(colorScheme == .dark ? 0.03 : 0.45))
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1)
         )
     }
 
+    private func metaItem(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(color)
+            Text(text)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+
+    private func metaDot() -> some View {
+        Text("·")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(Color.textTertiary.opacity(0.6))
+            .padding(.horizontal, 8)
+    }
+
+    // Away badge only shows when monitoring is active AND the very last scan returned
+    // personNotDetected — prevents stale "Away" persisting after user returns to desk.
     private var liveStatusBadge: some View {
         Group {
             switch viewModel.monitoringState {
             case .active:
-                if serviceLocator.postureService.lastRunStatus == .personNotDetected {
+                let isCurrentlyAway = serviceLocator.postureService.lastRunStatus == .personNotDetected
+                    && viewModel.todayScore == 0
+                if isCurrentlyAway {
                     HStack(spacing: 4) {
                         Image(systemName: "person.fill.questionmark")
                             .font(.system(size: 10, weight: .bold))
@@ -521,7 +586,7 @@ struct DashboardView: View {
 
     // MARK: — Card Grid (3 Columns)
 
-    private let cardHeight: CGFloat = 112
+    private let cardHeight: CGFloat = 130
 
     private var cardGrid: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -561,85 +626,126 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 0) {
 
             // ── Section header ────────────────────────────────────────────
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.brandSecondary.opacity(0.12))
-                        .frame(width: 30, height: 30)
+                        .fill(LinearGradient(
+                            colors: [Color.brandSecondary.opacity(0.18), Color.brandPrimary.opacity(0.12)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 34, height: 34)
                     Image(systemName: "sparkles")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Color.brandSecondary)
                 }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Suggestions")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.textPrimary)
-                    Text("Personalised ergonomic advice based on your posture scans today")
-                        .font(.system(size: 10.5, weight: .medium))
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                        Text("Suggestions")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.textPrimary)
+                        // AI Powered badge
+                        HStack(spacing: 4) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 7.5, weight: .bold))
+                            Text("AI")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundStyle(Color.brandSecondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.brandSecondary.opacity(0.10), in: Capsule())
+                        .overlay(Capsule().strokeBorder(Color.brandSecondary.opacity(0.25), lineWidth: 1))
+                    }
+                    Text("Personalised ergonomic advice based on your scans today")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.textSecondary)
                 }
                 Spacer()
             }
             .padding(.horizontal, 16)
-            .padding(.top, 14)
+            .padding(.top, 16)
             .padding(.bottom, 12)
 
-            // Line below header
-            Divider().opacity(0.35)
+            // Divider below header
+            Divider().opacity(0.28)
 
             // ── Body ──────────────────────────────────────────────────────
             Group {
                 if serviceLocator.postureService.lastRunStatus == .noScanYet {
                     noScanBanner
                 } else {
-                    // Shows two-column layout for both successful scans AND away state.
-                    // The left column adapts to show "Not Detected" when away.
+                    // Two-column layout handles both scan results and away state
                     twoColumnScanDetail
                 }
             }
             .padding(16)
         }
-        .background(Color.drCardBackground, in: RoundedRectangle(cornerRadius: 18))
+        // Glass stack: material first, then tint, then specular shimmer, then border
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .background {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.white.opacity(colorScheme == .dark ? 0.03 : 0.45))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(LinearGradient(
+                    colors: [Color.white.opacity(0.16), Color.white.opacity(0)],
+                    startPoint: .top, endPoint: .init(x: 0.5, y: 0.4)
+                ))
+                .allowsHitTesting(false)
+        }
         .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.08), radius: 10, y: 4)
     }
 
-    // MARK: Away banner
+    // MARK: Away banner (centred, more inviting)
     private var awayBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "person.fill.questionmark")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(Color.statusWarning)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Away from Desk")
-                    .font(.system(size: 13, weight: .bold))
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.statusWarning.opacity(0.12))
+                    .frame(width: 54, height: 54)
+                Image(systemName: "person.fill.questionmark")
+                    .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(Color.statusWarning)
-                Text("Sit in frame to check your alignment. The camera will check again automatically.")
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(.textSecondary)
             }
-            Spacer()
+            VStack(spacing: 5) {
+                Text("Away from Desk")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Color.statusWarning)
+                Text("Sit in frame and the camera will check your alignment automatically.")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
     }
 
-    // MARK: No-scan banner
+    // MARK: No-scan banner (centred, more inviting)
     private var noScanBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "figure.walk")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(Color.brandSecondary)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Start Monitoring")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.textPrimary)
-                Text("Click 'Start Monitoring' to receive posture evaluations and workstation advice.")
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(.textSecondary)
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.brandSecondary.opacity(0.10))
+                    .frame(width: 54, height: 54)
+                Image(systemName: "figure.walk")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(Color.brandSecondary)
             }
-            Spacer()
+            VStack(spacing: 5) {
+                Text("Start Monitoring")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.textPrimary)
+                Text("Tap 'Start Monitoring' to receive real-time posture evaluations and workstation advice.")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
     }
 
     // MARK: Two-column scan detail
@@ -822,13 +928,15 @@ struct DashboardView: View {
                                 // Fixed-width progress bar
                                 ZStack(alignment: .leading) {
                                     Capsule()
-                                        .fill(Color.textTertiary.opacity(0.1))
-                                        .frame(height: 4)
+                                        .fill(Color.textTertiary.opacity(0.12))
+                                        .frame(height: 5)
                                     Capsule()
                                         .fill(col)
-                                        .frame(width: max(4, 68 * cat.goodRate), height: 4)
+                                        .frame(width: max(5, 68 * cat.goodRate), height: 5)
+                                        .shadow(color: col.opacity(0.35), radius: 2)
                                 }
                                 .frame(width: 68)
+                                .animation(.easeOut(duration: 0.65), value: cat.goodRate)
                                 Text("\(Int(cat.goodRate * 100))%")
                                     .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                                     .foregroundStyle(col)
@@ -868,22 +976,8 @@ struct DashboardView: View {
     // MARK: — Background (Vibrant Glowing Cosmic Orbs for Glassmorphism)
 
     private var dashboardBackground: some View {
-        ZStack {
-            Color(nsColor: .windowBackgroundColor)
-            // Purple cosmic orb
-            Circle()
-                .fill(Color.brandPrimary.opacity(colorScheme == .dark ? 0.18 : 0.10))
-                .frame(width: 450, height: 450)
-                .blur(radius: 90)
-                .offset(x: -120, y: -100)
-            // Cyan aurora orb
-            Circle()
-                .fill(Color.brandSecondary.opacity(colorScheme == .dark ? 0.15 : 0.08))
-                .frame(width: 380, height: 380)
-                .blur(radius: 90)
-                .offset(x: 220, y: 140)
-        }
-        .ignoresSafeArea()
+        Color(nsColor: .windowBackgroundColor)
+            .ignoresSafeArea()
     }
 
     // MARK: — Derived Colors
