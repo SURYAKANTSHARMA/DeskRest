@@ -73,8 +73,21 @@ struct HistoryDashboardView: View {
             .padding(.vertical, 40)
             Spacer()
         }
-        .background(Color.drCardBackground, in: RoundedRectangle(cornerRadius: 14))
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.04))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.14), Color.white.opacity(0.0)],
+                        startPoint: .top, endPoint: .center
+                    )
+                )
+                .allowsHitTesting(false)
+        }
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1))
     }
 
@@ -118,11 +131,11 @@ struct HistoryStatCard: View {
                 Text(value)
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                     .foregroundStyle(.textPrimary)
-                
+
                 Text(title)
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.textPrimary)
-                
+
                 Text(subtitle)
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(.textSecondary)
@@ -130,12 +143,34 @@ struct HistoryStatCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isHovered ? Color.brandPrimary.opacity(0.06) : Color.drCardBackground)
+        // ── Glassmorphism ────────────────────────────────────────────────
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(isHovered ? Color.brandPrimary.opacity(0.08) : Color.white.opacity(0.04))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.0)],
+                        startPoint: .top, endPoint: .center
+                    )
+                )
+                .allowsHitTesting(false)
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(isHovered ? Color.brandAccent : Color.drGlassSpecularBorder, lineWidth: isHovered ? 1.5 : 1.0)
+                .strokeBorder(
+                    isHovered ? Color.brandSecondary.opacity(0.5) : Color.drGlassSpecularBorder,
+                    lineWidth: isHovered ? 1.5 : 1.0
+                )
         )
+        .shadow(
+            color: isHovered ? Color.brandPrimary.opacity(0.18) : Color.black.opacity(0.08),
+            radius: isHovered ? 10 : 5, y: isHovered ? 4 : 2
+        )
+        .scaleEffect(isHovered ? 1.012 : 1.0)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
@@ -189,7 +224,7 @@ struct DailyReportRow: View {
                         .foregroundStyle(.textSecondary)
                 }
             }
-            
+
             Spacer()
 
             // Scans Count Badge
@@ -209,7 +244,6 @@ struct DailyReportRow: View {
                 Circle()
                     .fill(Color.postureScoreColor(for: report.averageScore).opacity(0.12))
                     .frame(width: 32, height: 32)
-                
                 Text(report.averageScore > 0 ? "\(report.averageScore)" : "—")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.postureScoreColor(for: report.averageScore))
@@ -217,12 +251,34 @@ struct DailyReportRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(isHovered ? Color.brandPrimary.opacity(0.05) : Color.drCardBackground)
+        // ── Glassmorphism ────────────────────────────────────────────────
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isHovered ? Color.brandPrimary.opacity(0.07) : Color.white.opacity(0.03))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.14), Color.white.opacity(0.0)],
+                        startPoint: .top, endPoint: .center
+                    )
+                )
+                .allowsHitTesting(false)
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(isHovered ? Color.brandAccent : Color.drGlassSpecularBorder, lineWidth: 1)
+                .strokeBorder(
+                    isHovered ? Color.brandSecondary.opacity(0.45) : Color.drGlassSpecularBorder,
+                    lineWidth: isHovered ? 1.5 : 1.0
+                )
         )
+        .shadow(
+            color: isHovered ? Color.brandPrimary.opacity(0.15) : Color.black.opacity(0.07),
+            radius: isHovered ? 8 : 4, y: isHovered ? 3 : 2
+        )
+        .scaleEffect(isHovered ? 1.008 : 1.0)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.15), value: isHovered)
     }

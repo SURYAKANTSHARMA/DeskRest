@@ -30,37 +30,50 @@ struct DailySummaryCardView: View {
     private var accentColor: Color { Color.postureScoreColor(for: score) }
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 18)
-                .fill(isHovered ? Color.brandPrimary.opacity(0.06) : Color.drCardBackground)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        VStack(alignment: .leading, spacing: 0) {
+            headerRow
 
+            HStack(alignment: .center, spacing: 14) {
+                scoreRing
+                statsColumn
+            }
+            .padding(.top, 10)
+
+            Spacer(minLength: 6)
+            breakProgressBar
+            Spacer(minLength: 8)
+            motivationalFooter
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // ── Glassmorphism ────────────────────────────────────────────────
+        // Material first so blur renders through tint and shimmer
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .background {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(isHovered ? Color.brandPrimary.opacity(0.07) : Color.white.opacity(0.04))
+        }
+        .overlay {
+            // Specular top-edge shimmer
+            RoundedRectangle(cornerRadius: 18)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.0)],
+                        startPoint: .top, endPoint: .center
+                    )
+                )
+                .allowsHitTesting(false)
+        }
+        .overlay(
             RoundedRectangle(cornerRadius: 18)
                 .strokeBorder(
                     isHovered ? Color.brandPrimary.opacity(0.6) : Color.drGlassSpecularBorder,
                     lineWidth: isHovered ? 1.5 : 1.0
                 )
-
-            VStack(alignment: .leading, spacing: 0) {
-                headerRow
-
-                HStack(alignment: .center, spacing: 14) {
-                    scoreRing
-                    statsColumn
-                }
-                .padding(.top, 10)
-
-                Spacer(minLength: 6)
-                breakProgressBar
-                Spacer(minLength: 8)
-                motivationalFooter
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
+        )
         .shadow(
-            color: isHovered ? Color.brandPrimary.opacity(0.15) : Color.black.opacity(0.06),
-            radius: isHovered ? 8 : 4, y: 2
+            color: isHovered ? Color.brandPrimary.opacity(0.20) : Color.black.opacity(0.10),
+            radius: isHovered ? 12 : 6, y: isHovered ? 5 : 3
         )
         .scaleEffect(isHovered ? 1.012 : 1.0)
         .onHover { isHovered = $0 }

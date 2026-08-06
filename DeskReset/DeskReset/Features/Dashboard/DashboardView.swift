@@ -113,14 +113,13 @@ struct DashboardView: View {
 
     private var sidebarHeader: some View {
         HStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.brandPrimary)
-                    .frame(width: 30, height: 30)
-                Image(systemName: "figure.walk")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white)
-            }
+            // App icon — rendered at full size, its own squircle shape shows naturally
+            Image(nsImage: NSImage(named: NSImage.applicationIconName)!)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 30, height: 30)
+                .shadow(color: Color(red: 124/255, green: 58/255, blue: 237/255).opacity(0.4), radius: 4, y: 2)
+
             // Use fixedSize(false) so text truncates inside the column rather than overflows
             VStack(alignment: .leading, spacing: 0) {
                 Text("DeskReset")
@@ -226,6 +225,7 @@ struct DashboardView: View {
             HStack(spacing: 5) {
                 Image(systemName: "camera.viewfinder")
                     .font(.caption2)
+                    .foregroundStyle(Color.brandSecondary)
                 Text("Posture Detection — Active")
                     .font(.caption2)
             }
@@ -287,11 +287,11 @@ struct DashboardView: View {
         HStack(spacing: 14) {
             ZStack {
                 Circle()
-                    .fill(Color.brandPrimary.opacity(0.15))
+                    .fill(Color.brandSecondary.opacity(0.15))
                     .frame(width: 44, height: 44)
                 Image(systemName: "figure.stand")
                     .font(.title3)
-                    .foregroundStyle(.brandPrimary)
+                    .foregroundStyle(Color.brandSecondary)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -564,11 +564,11 @@ struct DashboardView: View {
             HStack(spacing: 10) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.brandPrimary.opacity(0.12))
+                        .fill(Color.brandSecondary.opacity(0.12))
                         .frame(width: 30, height: 30)
                     Image(systemName: "sparkles")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.brandPrimary)
+                        .foregroundStyle(Color.brandSecondary)
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Suggestions")
@@ -628,7 +628,7 @@ struct DashboardView: View {
         HStack(spacing: 12) {
             Image(systemName: "figure.walk")
                 .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(.textTertiary)
+                .foregroundStyle(Color.brandSecondary)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Start Monitoring")
                     .font(.system(size: 13, weight: .bold))
@@ -774,7 +774,8 @@ struct DashboardView: View {
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.textTertiary)
                     .tracking(0.6)
-                    .symbolRenderingMode(.hierarchical)
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(Color.brandSecondary, Color.textTertiary)
 
                 // Workspace advice
                 Text(viewModel.overallWorkspaceAdvice)
@@ -788,7 +789,7 @@ struct DashboardView: View {
                     HStack(alignment: .top, spacing: 5) {
                         Image(systemName: "bolt.fill")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Color.brandPrimary)
+                            .foregroundStyle(Color.brandSecondary)
                             .padding(.top, 1)
                         Text(viewModel.motivationalTip)
                             .font(.system(size: 10, weight: .medium))

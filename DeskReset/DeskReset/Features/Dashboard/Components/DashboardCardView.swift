@@ -47,20 +47,40 @@ struct DashboardCardView: View {
             cardContent
         }
         .buttonStyle(.plain)
+        // ── Glassmorphism background ─────────────────────────────────────
+        // Layer order (back → front):
+        //   1. ultraThinMaterial  — frosted blur
+        //   2. tint fill          — subtle colour overlay at low opacity
+        //   3. specular shimmer   — top-edge highlight for depth
+        //   4. selection ring     — border
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .background {
             RoundedRectangle(cornerRadius: 18)
                 .fill(
                     isSelected
-                        ? Color.brandPrimary.opacity(0.14)
-                        : (isHovered ? Color.brandPrimary.opacity(0.06) : Color.drCardBackground)
+                        ? Color.brandPrimary.opacity(0.12)
+                        : (isHovered ? Color.brandPrimary.opacity(0.07) : Color.white.opacity(0.04))
                 )
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        }
+        .overlay {
+            // Specular top-edge shimmer (glass highlight)
+            RoundedRectangle(cornerRadius: 18)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.0)],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+                .allowsHitTesting(false)
         }
         .overlay(selectionRing)
         .shadow(
-            color: isSelected ? Color.brandPrimary.opacity(0.3) : (isHovered ? Color.brandPrimary.opacity(0.15) : Color.black.opacity(0.06)),
-            radius: isSelected ? 12 : (isHovered ? 8 : 4),
-            y: isSelected ? 4 : 2
+            color: isSelected
+                ? Color.brandPrimary.opacity(0.35)
+                : (isHovered ? Color.brandPrimary.opacity(0.18) : Color.black.opacity(0.10)),
+            radius: isSelected ? 14 : (isHovered ? 10 : 6),
+            y: isSelected ? 5 : 3
         )
         .scaleEffect(isSelected ? 1.02 : (isHovered ? 1.012 : 1.0))
         .onHover { isHovered = $0 }

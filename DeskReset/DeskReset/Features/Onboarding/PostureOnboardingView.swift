@@ -78,8 +78,7 @@ private let postureCheckpoints: [PostureCheckpoint] = [
     PostureCheckpoint(number: 3, label: "Shoulders",  description: "Relaxed and level. Not hunched or elevated toward ears.",                  icon: "figure.arms.open",               color: Color.brandPrimary),
     PostureCheckpoint(number: 4, label: "Back",       description: "Lower back supported. Maintain the natural S-curve — no slouching.",       icon: "figure.seated.side",             color: Color.brandAccent),
     PostureCheckpoint(number: 5, label: "Elbows",     description: "Bent ~90°. Wrists neutral, not bent up or down while typing.",             icon: "hand.raised.fill",               color: Color.brandPrimary),
-    PostureCheckpoint(number: 6, label: "Hips & Legs",description: "Knees at ~90°. Feet flat on floor. Thighs parallel to the ground.",       icon: "figure.walk.circle.fill",        color: Color.brandAccent),
-    PostureCheckpoint(number: 7, label: "Screen",     description: "Arm's length away (~50–70 cm). Top of screen at or just below eye level.", icon: "display",                        color: Color.brandPrimary),
+    PostureCheckpoint(number: 6, label: "Screen",     description: "Arm's length away (~50–70 cm). Top of screen at or just below eye level.", icon: "display",                        color: Color.brandPrimary),
 ]
 
 // MARK: — Camera Tip
@@ -181,32 +180,41 @@ struct PostureOnboardingView: View {
             )
             .animation(.easeInOut(duration: 0.6), value: currentStep)
 
-            // AI-generated hero image
-            Image(currentStep.imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 280)
-                .clipped()
+            // Hero image or Option A calibration symbol
+            if currentStep == .calibrate {
+                ZStack {
+                    Circle()
+                        .stroke(currentStep.accentColor.opacity(0.20), lineWidth: 2)
+                        .frame(width: 140, height: 140)
+                    Circle()
+                        .stroke(currentStep.accentColor.opacity(0.12), lineWidth: 1)
+                        .frame(width: 180, height: 180)
+
+                    Image(systemName: "scope")
+                        .font(.system(size: 76, weight: .thin))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [currentStep.accentColor, currentStep.accentColor.opacity(0.5)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: currentStep.accentColor.opacity(0.35), radius: 8)
+                }
                 .opacity(animateHero ? 1.0 : 0.0)
                 .scaleEffect(animateHero ? 1.0 : 1.04)
                 .animation(.easeOut(duration: 0.7), value: currentStep)
                 .animation(.easeOut(duration: 0.6), value: animateHero)
-
-            // Bottom label tag
-            VStack {
-                Spacer()
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 10, weight: .bold))
-                    Text("AI Vision · DeskReset")
-                        .font(.system(size: 10, weight: .bold))
-                }
-                .foregroundStyle(.white.opacity(0.9))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
-                .padding(.bottom, 18)
+            } else {
+                Image(currentStep.imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 280)
+                    .clipped()
+                    .opacity(animateHero ? 1.0 : 0.0)
+                    .scaleEffect(animateHero ? 1.0 : 1.04)
+                    .animation(.easeOut(duration: 0.7), value: currentStep)
+                    .animation(.easeOut(duration: 0.6), value: animateHero)
             }
         }
         .background(Color.black.opacity(0.15))
@@ -247,7 +255,6 @@ struct PostureOnboardingView: View {
                 VStack(spacing: 10) {
                     featureRow(icon: "camera.viewfinder",  label: "Vision AI Monitoring",    color: .brandPrimary,   detail: "Real-time posture detection via your camera")
                     featureRow(icon: "chart.bar.fill",     label: "Daily Wellness Scores",   color: .brandAccent,    detail: "Track posture trends over your workday")
-                    featureRow(icon: "figure.walk",        label: "Smart Break Reminders",   color: .statusSuccess,  detail: "Guided recovery routines to reset stiffness")
                     featureRow(icon: "sparkles",           label: "AI Ergonomic Advisor",    color: .brandSecondary, detail: "Personalised tips based on your posture data")
                 }
             }
@@ -444,18 +451,14 @@ struct PostureOnboardingView: View {
 
     private func stepHeader(step: OnboardingStep) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            // Step label badge
-            HStack(spacing: 5) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 9, weight: .bold))
-                Text("Step \(step.rawValue + 1) of \(OnboardingStep.allCases.count)")
-                    .font(.system(size: 10.5, weight: .bold))
-            }
-            .foregroundStyle(step.accentColor)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(step.accentColor.opacity(0.10), in: Capsule())
-            .overlay(Capsule().strokeBorder(step.accentColor.opacity(0.25), lineWidth: 1))
+            // Step label badge — plain text only, no icon
+            Text("Step \(step.rawValue + 1) of \(OnboardingStep.allCases.count)")
+                .font(.system(size: 10.5, weight: .bold))
+                .foregroundStyle(step.accentColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(step.accentColor.opacity(0.10), in: Capsule())
+                .overlay(Capsule().strokeBorder(step.accentColor.opacity(0.25), lineWidth: 1))
 
             Text(step.title)
                 .font(.system(size: 21, weight: .bold))
