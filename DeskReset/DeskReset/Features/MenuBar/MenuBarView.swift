@@ -34,12 +34,19 @@ struct MenuBarView: View {
         HStack(spacing: 11) {
             // App icon
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.brandPrimary)
-                    .frame(width: 36, height: 36)
-                Image(systemName: "figure.walk")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                if let appIcon = NSImage(named: "AppIcon") {
+                    Image(nsImage: appIcon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 34, height: 34)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
+                    Image("OnboardingPosture")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
             }
 
             VStack(alignment: .leading, spacing: 1) {
@@ -194,16 +201,15 @@ struct MenuBarView: View {
                 }
             }
 
-            Divider().padding(.leading, 44)
-
             // Settings
             menuRow(
                 icon: "gearshape.fill",
                 label: "Settings",
                 subtitle: "Configure DeskReset",
-                shortcut: "⌘,"
+                iconColor: .brandSecondary
             ) {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                openWindow(id: AppWindowID.dashboard)
+                NotificationCenter.default.post(name: Notification.Name("ShowSettingsTab"), object: nil)
             }
 
             Divider()

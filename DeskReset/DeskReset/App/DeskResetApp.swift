@@ -14,7 +14,7 @@ struct DeskResetApp: App {
     var body: some Scene {
 
         // MARK: — Dashboard Window (primary window scene)
-        WindowGroup("Dashboard", id: AppWindowID.dashboard) {
+        Window("Dashboard", id: AppWindowID.dashboard) {
             DashboardView()
                 .environment(appContainer.serviceLocator)
                 .modelContainer(appContainer.modelContainer)
@@ -23,10 +23,17 @@ struct DeskResetApp: App {
         .windowResizability(.contentSize)
 
         // MARK: — Menu Bar (popover window style)
-        MenuBarExtra("DeskReset", systemImage: "figure.walk") {
+        MenuBarExtra {
             MenuBarView()
                 .environment(appContainer.serviceLocator)
                 .modelContainer(appContainer.modelContainer)
+        } label: {
+            if let image = NSImage(named: "MenuBarIcon") {
+                let _ = { image.size = NSSize(width: 32, height: 24) }()
+                Image(nsImage: image)
+            } else {
+                Image(systemName: "figure.seated.side")
+            }
         }
         .menuBarExtraStyle(.window)
 
@@ -37,13 +44,6 @@ struct DeskResetApp: App {
         }
         .defaultSize(width: 760, height: 510)
         .windowResizability(.contentSize)
-
-        // MARK: — Settings (opens on Cmd+,)
-        Settings {
-            SettingsView()
-                .environment(appContainer.serviceLocator)
-                .modelContainer(appContainer.modelContainer)
-        }
     }
 }
 

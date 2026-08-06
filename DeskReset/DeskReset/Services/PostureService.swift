@@ -22,7 +22,15 @@ final class PostureService: PostureServiceProtocol {
     var currentSnapshot: PostureSnapshot?   = nil
     var currentAssessment: PostureAssessment? = nil
     var baseline: PostureBaseline           = .uncalibrated
-    var monitoringInterval: TimeInterval    = 90
+    var monitoringInterval: TimeInterval    = 90 {
+        didSet {
+            if isMonitoring && oldValue != monitoringInterval {
+                Logger.services.info("PostureService monitoring interval changed from \(oldValue)s to \(self.monitoringInterval)s. Restarting task.")
+                // Restart monitoring loop immediately to adopt new interval
+                startMonitoring()
+            }
+        }
+    }
     var nextCheckTime: Date?                = nil
     var lastRunStatus: LastRunStatus        = .noScanYet
 

@@ -23,12 +23,14 @@ struct DashboardView: View {
     enum SidebarItem: String, CaseIterable, Identifiable {
         case overview = "Overview"
         case history  = "History"
+        case settings = "Settings"
 
         var id: String { rawValue }
         var icon: String {
             switch self {
             case .overview: return "square.grid.2x2.fill"
             case .history:  return "clock.arrow.circlepath"
+            case .settings: return "gearshape.fill"
             }
         }
     }
@@ -61,6 +63,11 @@ struct DashboardView: View {
                 .onAppear {
                     viewModel.configure(with: serviceLocator)
                     viewModel.loadStats(modelContext: modelContext)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowSettingsTab"))) { _ in
+                    withAnimation(.spring(duration: 0.25)) {
+                        selectedSidebar = .settings
+                    }
                 }
             }
         }
@@ -108,8 +115,8 @@ struct DashboardView: View {
                 .frame(width: 1),
             alignment: .trailing
         )
-        // Sidebar: 160 min so text is always legible; 220 max so it never dominates
-        .navigationSplitViewColumnWidth(min: 160, ideal: 195, max: 220)
+        // Sidebar: 180 min so text is always fully legible; 240 max
+        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
         .toolbar(removing: .sidebarToggle)
     }
 
@@ -259,6 +266,7 @@ struct DashboardView: View {
         switch selectedSidebar {
         case .overview: overviewContent
         case .history:  historyContent
+        case .settings: settingsContent
         }
     }
 
@@ -406,66 +414,74 @@ struct DashboardView: View {
     }
 
     private var headerMetaBar: some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .center, spacing: 0) {
             // ── Left accent bar ──────────────────────────────────────
             Capsule()
                 .fill(LinearGradient(
                     colors: [Color.brandPrimary, Color.brandSecondary],
                     startPoint: .top, endPoint: .bottom
                 ))
-                .frame(width: 3, height: 36)
+                .frame(width: 3, height: 38)
+                .padding(.trailing, 14)
 
-            // ── Content ──────────────────────────────────────────────
-            VStack(alignment: .leading, spacing: 5) {
-                // Row 1: Date + Uptime + Next check
-                HStack(spacing: 0) {
+            // ── Multi-line Grid Content with clean spacing ───────────
+            VStack(alignment: .leading, spacing: 6) {
+                // Row 1: Time parameters (always visible)
+                HStack(spacing: 12) {
                     metaItem(
                         icon: "calendar",
                         text: Date.now.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)),
                         color: .brandPrimary
                     )
-                    metaDot()
+                    
+                    metaDivider()
+                    
                     metaItem(
                         icon: "timer",
                         text: viewModel.monitoringUptime == "—" ? "Not active" : viewModel.monitoringUptime + " active",
                         color: .brandSecondary
                     )
+                    
                     if viewModel.monitoringState == .active {
-                        metaDot()
+                        metaDivider()
                         metaItem(
                             icon: "stopwatch",
                             text: "Next " + viewModel.nextCheckIn,
                             color: .brandSecondary
                         )
                     }
-                    Spacer(minLength: 0)
                 }
-
-                // Row 2: Scans + Away (hidden when no data yet)
+                
+                // Row 2: Status counts (only visible when active stats exist)
                 if viewModel.todayScansCount > 0 || viewModel.todayAwayCount > 0 {
-                    HStack(spacing: 0) {
-                        metaItem(
-                            icon: "checkmark.circle.fill",
-                            text: "\(viewModel.todayScansCount) scan\(viewModel.todayScansCount == 1 ? "" : "s") today",
-                            color: .statusSuccess
-                        )
+                    HStack(spacing: 12) {
+                        if viewModel.todayScansCount > 0 {
+                            metaItem(
+                                icon: "checkmark.circle.fill",
+                                text: "\(viewModel.todayScansCount) scan\(viewModel.todayScansCount == 1 ? "" : "s") today",
+                                color: .statusSuccess
+                            )
+                        }
+                        
+                        if viewModel.todayScansCount > 0 && viewModel.todayAwayCount > 0 {
+                            metaDivider()
+                        }
+                        
                         if viewModel.todayAwayCount > 0 {
-                            metaDot()
                             metaItem(
                                 icon: "person.slash.fill",
                                 text: "\(viewModel.todayAwayCount) away",
                                 color: .statusWarning
                             )
                         }
-                        Spacer(minLength: 0)
                     }
                 }
             }
-
+            
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(.vertical, 12)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
         .background {
             RoundedRectangle(cornerRadius: 12)
@@ -475,6 +491,12 @@ struct DashboardView: View {
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1)
         )
+    }
+
+    private func metaDivider() -> some View {
+        RoundedRectangle(cornerRadius: 0.5)
+            .fill(Color.textTertiary.opacity(0.3))
+            .frame(width: 1, height: 10)
     }
 
     private func metaItem(icon: String, text: String, color: Color) -> some View {
@@ -956,6 +978,120 @@ struct DashboardView: View {
 
     // MARK: — History Tab
 
+    // MARK: — Settings Tab
+
+    @State private var selectedInterval: TimeInterval = 90
+    private let intervalOptions: [(label: String, value: TimeInterval)] = [
+        ("90 seconds", 90),
+        ("5 minutes", 300),
+        ("10 minutes", 600),
+        ("15 minutes", 900),
+        ("30 minutes", 1800)
+    ]
+
+    private var settingsContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Header
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Settings")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.textPrimary)
+                    Text("Configure monitoring frequency and preferences")
+                        .font(.subheadline)
+                        .foregroundStyle(.textSecondary)
+                }
+                
+                Divider().opacity(0.2)
+
+                // Monitoring Settings Box
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.brandPrimary.opacity(0.12))
+                                .frame(width: 28, height: 28)
+                            Image(systemName: "stopwatch.fill")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(Color.brandPrimary)
+                        }
+                        Text("Monitoring Frequency")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.textPrimary)
+                    }
+
+                    Text("Choose how frequently Vision AI scans your posture during active monitoring. Shorter intervals catch slouching quicker; longer intervals preserve system resources.")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.textSecondary)
+                        .lineSpacing(3)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("SCAN INTERVAL")
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(.textTertiary)
+                            .tracking(0.5)
+
+                        Picker("", selection: $selectedInterval) {
+                            ForEach(intervalOptions, id: \.value) { opt in
+                                Text(opt.label).tag(opt.value)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 180)
+                        .onChange(of: selectedInterval) { _, newValue in
+                            saveIntervalPreference(newValue)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(16)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .background {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.white.opacity(colorScheme == .dark ? 0.03 : 0.45))
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1)
+                )
+            }
+            .padding(26)
+        }
+        .background(dashboardBackground)
+        .onAppear {
+            loadIntervalPreference()
+        }
+    }
+
+    private func loadIntervalPreference() {
+        do {
+            let prefsList = try modelContext.fetch(FetchDescriptor<UserPreferences>())
+            if let prefs = prefsList.first {
+                selectedInterval = prefs.monitoringInterval
+            }
+        } catch {
+            // Handle error silently
+        }
+    }
+
+    private func saveIntervalPreference(_ interval: TimeInterval) {
+        do {
+            let prefsList = try modelContext.fetch(FetchDescriptor<UserPreferences>())
+            let prefs = prefsList.first ?? UserPreferences()
+            if prefsList.isEmpty {
+                modelContext.insert(prefs)
+            }
+            prefs.monitoringInterval = interval
+            try modelContext.save()
+            
+            // Sync to posture service
+            serviceLocator.postureService.monitoringInterval = interval
+        } catch {
+            // Handle error silently
+        }
+    }
+
     private var historyContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -1025,8 +1161,7 @@ struct SidebarButton: View {
                 Text(item.rawValue)
                     .font(.system(size: 13.5, weight: isSelected ? .bold : .semibold))
                     .foregroundStyle(isSelected ? Color.white : (isHovered ? Color.white : Color.textSecondary))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                    .fixedSize()
 
                 Spacer(minLength: 0)
             }
