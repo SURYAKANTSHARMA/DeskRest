@@ -100,7 +100,7 @@ final class CameraDebugViewModel {
 
     private func beginFrameConsumption(from service: any CameraServiceProtocol) {
         frameStreamTask?.cancel()
-        frameStreamTask = Task { [weak self] in
+        frameStreamTask = Task { @MainActor [weak self] in
             let stream = service.frameStream()
             for await buffer in stream {
                 guard !Task.isCancelled else { break }
@@ -111,7 +111,7 @@ final class CameraDebugViewModel {
                 // 2. Perform posture analysis & smoothing
                 let assessment = snapshot.map { self?.postureAnalyzer.analyze(snapshot: $0) } ?? nil
 
-                await self?.processFrame(buffer, snapshot: snapshot, assessment: assessment)
+                self?.processFrame(buffer, snapshot: snapshot, assessment: assessment)
             }
         }
     }

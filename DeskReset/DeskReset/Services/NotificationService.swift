@@ -26,9 +26,14 @@ final class NotificationService: NotificationServiceProtocol {
                 .requestAuthorization(options: [.alert, .sound, .badge])
             isAuthorized = granted
             Logger.notifications.info("Notification authorisation granted: \(granted)")
+            if !granted {
+                AnalyticsService.shared.log(.notificationPermissionDenied)
+            }
             return granted
         } catch {
             Logger.notifications.error("Notification authorisation error: \(error)")
+            AnalyticsService.shared.recordError(error, context: ["component": "NotificationService.requestAuthorization"])
+            AnalyticsService.shared.log(.notificationPermissionDenied)
             return false
         }
     }

@@ -72,6 +72,9 @@ final class DashboardViewModel {
     /// Per-category performance across all of today's valid scans
     var categoryRates: [CategoryRate] = []
 
+    /// Data-driven AI coaching guidance synthesizing historical logs and ergonomic fixes
+    var aiCoachGuidance: AICoachGuidance? = nil
+
     /// How the last scan score compares to today's average (positive = above avg)
     var scoreTrendVsAverage: Int { todayScore - averageScore }
 
@@ -122,6 +125,7 @@ final class DashboardViewModel {
 
     // MARK: - Private Services
     private var postureService: (any PostureServiceProtocol)?
+    private var ergonomicAdvisorService: (any ErgonomicAdvisorServiceProtocol)?
     private var uiTimer: Timer?
 
     // MARK: - Init
@@ -130,6 +134,7 @@ final class DashboardViewModel {
     // MARK: - Configure
     func configure(with serviceLocator: ServiceLocator) {
         self.postureService = serviceLocator.postureService
+        self.ergonomicAdvisorService = serviceLocator.ergonomicAdvisorService
         Logger.ui.info("DashboardViewModel configured")
         refreshMonitoringState()
     }
@@ -247,20 +252,35 @@ final class DashboardViewModel {
             }
 
             // Calculate direct dashboard recommendations
-            calculateRecommendations(todayLogs: todayLogs)
+            calculateRecommendations(todayLogs: todayLogs, allLogs: allLogs)
 
         } catch {
             Logger.data.error("Dashboard loadStats error: \(error)")
+            AnalyticsService.shared.recordError(error, context: ["operation": "DashboardViewModel.loadStats"])
+            AnalyticsService.shared.log(.dataStoreError(operation: "DashboardViewModel.loadStats", error: error.localizedDescription))
         }
         isLoading = false
     }
 
     // MARK: - Calculate Recommendations
 
-    private func calculateRecommendations(todayLogs: [PostureLog]) {
+    private func calculateRecommendations(todayLogs: [PostureLog], allLogs: [PostureLog]) {
         guard let ps = postureService else { return }
         
-        // 1. Last run recommendations
+        // 1. Generate full AI Coach Guidance
+        if let advisor = ergonomicAdvisorService {
+            let guidance = advisor.generateGuidance(
+                todayLogs: todayLogs,
+                allLogs: allLogs,
+                currentAssessment: ps.currentAssessment,
+                isMonitoring: ps.isMonitoring,
+                isCalibrated: isCalibrated
+            )
+            self.aiCoachGuidance = guidance
+            self.overallWorkspaceAdvice = guidance.ergonomicFixDetails
+        }
+
+        // 2. Last run recommendations
         if ps.lastRunStatus == .personNotDetected {
             lastCheckRecommendations = []
         } else if ps.lastRunStatus == .noScanYet {
@@ -305,11 +325,10 @@ final class DashboardViewModel {
             lastCheckRecommendations = []
         }
         
-        // 2. Overall trend recommendations (using all of today's logs)
+        // 3. Overall trend recommendations (using all of today's logs)
         if todayLogs.isEmpty {
             overallStrength = "—"
             overallStruggle = "—"
-            overallWorkspaceAdvice = "Start monitoring to receive daily pattern insights."
             return
         }
         
@@ -387,20 +406,8 @@ final class DashboardViewModel {
             let issueType = worst.0
             let percent = Int(Double(worst.1) / Double(totalScansToday) * 100)
             overallStruggle = "\(issueType.rawValue) (flagged in \(percent)% of scans)"
-            
-            switch issueType {
-            case .forwardHead:
-                overallWorkspaceAdvice = "Raise your monitor so the top of the screen is at eye level. This prevents your neck from drifting forward."
-            case .roundedShoulders:
-                overallWorkspaceAdvice = "Pull your keyboard and mouse closer so your elbows can rest comfortably by your sides at a 90° angle."
-            case .shoulderImbalance:
-                overallWorkspaceAdvice = "Avoid leaning on one armrest or side of your desk. Ensure your chair height is balanced."
-            case .torsoLean:
-                overallWorkspaceAdvice = "Distribute your weight evenly on both sit bones and place feet flat on the floor. Lumbar support helps."
-            }
         } else {
             overallStruggle = "No posture issues detected today!"
-            overallWorkspaceAdvice = "Your workstation setup is optimal! Keep monitoring to maintain this alignment."
         }
     }
 
@@ -428,13 +435,22 @@ final class DashboardViewModel {
         totalChecks     += 1
         refreshCurrentStatus()
         
+        AnalyticsService.shared.log(.monitoringStarted(isCalibrated: isCalibrated))
+        AnalyticsService.shared.setCrashlyticsKey("monitoring_active", value: "true")
+        
         uiTimer?.invalidate()
         uiTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.refreshCurrentStatus()
+            Task { @MainActor [weak self] in
+                self?.refreshCurrentStatus()
+            }
         }
     }
 
     func stopMonitoring() {
+        let duration = monitoringSince != nil ? Int(Date.now.timeIntervalSince(monitoringSince!)) : 0
+        AnalyticsService.shared.log(.monitoringStopped(durationSeconds: duration, scanCount: totalChecks))
+        AnalyticsService.shared.setCrashlyticsKey("monitoring_active", value: "false")
+
         postureService?.stopMonitoring()
         monitoringState = .inactive
         monitoringUptime = "—"

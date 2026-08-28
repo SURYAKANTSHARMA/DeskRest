@@ -6,10 +6,25 @@
 import SwiftUI
 import SwiftData
 
+// Firebase is conditionally imported — app compiles before SPM package is added.
+// Once GoogleService-Info.plist + SPM packages are added, this activates.
+#if canImport(FirebaseCore)
+import FirebaseCore
+#endif
+
 @main
 struct DeskResetApp: App {
 
     @State private var appContainer = AppContainer()
+
+    // Configure Firebase as early as possible (before any scene is created).
+    init() {
+        #if canImport(FirebaseCore)
+        FirebaseApp.configure()
+        #endif
+        AnalyticsService.shared.setAnonymousUserID()
+        AnalyticsService.shared.configureDebugView()
+    }
 
     var body: some Scene {
 
@@ -18,9 +33,12 @@ struct DeskResetApp: App {
             DashboardView()
                 .environment(appContainer.serviceLocator)
                 .modelContainer(appContainer.modelContainer)
+                .preferredColorScheme(.dark)
         }
-        .defaultSize(width: 860, height: 580)
-        .windowResizability(.contentSize)
+        .defaultSize(width: 1100, height: 640)
+        .windowResizability(.automatic)
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact)
 
         // MARK: — Menu Bar (popover window style)
         MenuBarExtra {

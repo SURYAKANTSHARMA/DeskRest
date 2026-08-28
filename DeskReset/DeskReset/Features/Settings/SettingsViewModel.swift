@@ -79,8 +79,14 @@ final class SettingsViewModel {
 
             try modelContext.save()
             Logger.data.info("Preferences saved successfully")
+            AnalyticsService.shared.log(.settingsUpdated(settingName: "notifications_enabled", value: "\(notificationsEnabled)"))
+            AnalyticsService.shared.log(.settingsUpdated(settingName: "sound_enabled", value: "\(soundEnabled)"))
+            AnalyticsService.shared.log(.settingsUpdated(settingName: "launch_at_login", value: "\(launchAtLogin)"))
+            AnalyticsService.shared.log(.settingsUpdated(settingName: "show_in_dock", value: "\(showInDock)"))
         } catch {
             Logger.data.error("Failed to save preferences: \(error)")
+            AnalyticsService.shared.recordError(error, context: ["operation": "SettingsViewModel.savePreferences"])
+            AnalyticsService.shared.log(.dataStoreError(operation: "savePreferences", error: error.localizedDescription))
         }
         isSaving = false
     }

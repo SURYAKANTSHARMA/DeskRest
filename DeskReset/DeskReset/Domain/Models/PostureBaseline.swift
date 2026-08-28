@@ -16,7 +16,7 @@ public struct PostureBaseline: Sendable, Codable, Equatable {
     public var shoulderWidthRatio: Double
     public var shoulderZDiff: Double
 
-    public static let uncalibrated = PostureBaseline(
+    public nonisolated static let uncalibrated = PostureBaseline(
         isCalibrated: false,
         calibratedAt: nil,
         headOffset: 0.0,

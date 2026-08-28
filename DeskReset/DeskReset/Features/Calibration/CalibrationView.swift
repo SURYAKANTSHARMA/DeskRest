@@ -17,6 +17,7 @@ struct CalibrationView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel = CalibrationViewModel()
+    @State private var calibrationStartTime: Date? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +29,8 @@ struct CalibrationView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             viewModel.configure(with: serviceLocator)
+            calibrationStartTime = Date()
+            AnalyticsService.shared.log(.calibrationStarted(source: "dashboard"))
         }
         .onDisappear {
             viewModel.cancel()
@@ -52,6 +55,7 @@ struct CalibrationView: View {
             }
             Spacer()
             Button {
+                AnalyticsService.shared.log(.calibrationCancelled)
                 viewModel.cancel()
                 dismiss()
             } label: {

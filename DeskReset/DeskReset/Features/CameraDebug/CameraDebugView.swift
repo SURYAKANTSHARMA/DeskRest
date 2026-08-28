@@ -25,6 +25,7 @@ struct CameraDebugView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             viewModel.configure(with: serviceLocator)
+            AnalyticsService.shared.log(.cameraDebugOpened)
         }
         .onDisappear {
             viewModel.stopSession()

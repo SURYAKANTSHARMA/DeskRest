@@ -54,7 +54,7 @@ final class CameraService: CameraServiceProtocol {
     // nonisolated(unsafe) allows these to be safely accessed from the session /
     // output DispatchQueues without triggering MainActor isolation errors.
     nonisolated(unsafe) private let _session     = AVCaptureSession()
-    nonisolated(unsafe) private let frameHandler = FrameHandler()
+    private let frameHandler = FrameHandler()
     nonisolated        private let sessionQueue  = DispatchQueue(
         label: "com.deskreset.camera.session", qos: .userInitiated)
     nonisolated        private let outputQueue   = DispatchQueue(
@@ -82,12 +82,17 @@ final class CameraService: CameraServiceProtocol {
             let granted = await AVCaptureDevice.requestAccess(for: .video)
             permissionStatus = granted ? .authorized : .denied
             Logger.services.info("Camera permission request result: \(granted)")
+            if !granted {
+                AnalyticsService.shared.log(.cameraPermissionDenied(status: "denied_initial_prompt"))
+            }
             return granted
         case .denied:
             permissionStatus = .denied
+            AnalyticsService.shared.log(.cameraPermissionDenied(status: "denied"))
             return false
         case .restricted:
             permissionStatus = .restricted
+            AnalyticsService.shared.log(.cameraPermissionDenied(status: "restricted"))
             return false
         @unknown default:
             return false
@@ -99,6 +104,7 @@ final class CameraService: CameraServiceProtocol {
     func start() async throws {
         guard permissionStatus == .authorized else {
             Logger.services.error("CameraService.start() called without permission")
+            AnalyticsService.shared.log(.cameraError(error: "start_without_permission"))
             throw CameraError.permissionDenied
         }
         guard !_session.isRunning else {
@@ -125,6 +131,8 @@ final class CameraService: CameraServiceProtocol {
                     DispatchQueue.main.async {
                         self.lastError = error.localizedDescription
                     }
+                    AnalyticsService.shared.recordError(error, context: ["component": "CameraService.start"])
+                    AnalyticsService.shared.log(.cameraError(error: error.localizedDescription))
                     Logger.services.error("CameraService.start() failed: \(error)")
                     cont.resume(throwing: error)
                 }

@@ -244,6 +244,8 @@ final class CalibrationViewModel {
         calibrationTask?.cancel()
 
         guard samples.count >= 10 else {
+            let reason = "insufficient_pose_samples"
+            AnalyticsService.shared.log(.calibrationFailed(reason: reason, samplesCollected: samples.count))
             phase = .failed("Could not detect body pose clearly. Please ensure you are visible in the camera frame.")
             return
         }
@@ -292,6 +294,9 @@ final class CalibrationViewModel {
         }
 
         phase = .completed(baseline)
+        AnalyticsService.shared.log(.calibrationCompleted(durationSeconds: 10))
+        AnalyticsService.shared.setUserProperty("true", forName: "is_calibrated")
+        AnalyticsService.shared.setCrashlyticsKey("is_calibrated", value: "true")
     }
 
     func cancel() {

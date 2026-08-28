@@ -2,10 +2,14 @@
 //  PostureAnalyzer.swift
 //  DeskReset
 //
-//  Pure geometric posture analysis engine.
-//  Evaluates body pose metrics (forward head, rounded shoulders, shoulder imbalance, torso lean)
-//  by comparing against the user's calibrated neutral baseline, smooths metrics via EMA,
-//  and filters out noise.
+//  Pure-domain ergonomic posture analysis engine.
+//  Evaluates joint coordinates against a PostureBaseline and identifies specific issues:
+//  - Forward Head (tech neck)
+//  - Shoulder Imbalance (one shoulder higher)
+//  - Torso Lean (lateral tilt)
+//  - Rounded Shoulders (inward shoulder rotation)
+//
+//  Calculates a continuous 0–100 ergonomic score.
 //
 
 import Foundation
@@ -69,173 +73,160 @@ final class PostureAnalyzer: @unchecked Sendable {
             )
         }
 
-        guard let head = snapshot.head,
-              let neck = snapshot.neck,
+        guard let head      = snapshot.head,
+              let neck      = snapshot.neck,
               let lShoulder = snapshot.leftShoulder,
               let rShoulder = snapshot.rightShoulder else {
             return PostureAssessment()
         }
 
-        // 2. Compute Raw Instantaneous Metrics
-
-        // A. Forward Head Ratio: Euclidean Head-to-Neck distance normalized by torso height
-        // This ensures the calculation is distance-to-camera invariant!
+        // 2. Anatomical Normalisation Vectors
         let dxShoulders = Double(rShoulder.point.x - lShoulder.point.x)
         let dyShoulders = Double(rShoulder.point.y - lShoulder.point.y)
-        let rawShoulderTilt = atan2(dyShoulders, dxShoulders) * (180.0 / .pi)
+        let currentShoulderWidth = hypot(dxShoulders, dyShoulders)
 
-        let torsoPoint = snapshot.torso?.point ?? CGPoint(
+        let torsoBase = snapshot.torso?.point ?? CGPoint(
             x: (lShoulder.point.x + rShoulder.point.x) / 2.0,
-            y: (lShoulder.point.y + rShoulder.point.y) / 2.0 - 0.2
+            y: (lShoulder.point.y + rShoulder.point.y) / 2.0 - CGFloat(currentShoulderWidth * 1.5)
         )
-        let dxTorso = Double(torsoPoint.x - neck.point.x)
-        let dyTorso = Double(neck.point.y - torsoPoint.y) // Y increases upward in Vision
-        let rawTorsoLean = atan2(dxTorso, max(dyTorso, 0.001)) * (180.0 / .pi)
+        let midShoulders = CGPoint(
+            x: (lShoulder.point.x + rShoulder.point.x) / 2.0,
+            y: (lShoulder.point.y + rShoulder.point.y) / 2.0
+        )
+        let dxTorso = Double(midShoulders.x - torsoBase.x)
+        let dyTorso = Double(midShoulders.y - torsoBase.y)
+        let currentTorsoHeight = max(hypot(dxTorso, dyTorso), 0.05)
 
-        let torsoHeight   = max(hypot(dxTorso, dyTorso), 0.05)
-        let headDist      = hypot(Double(head.point.x - neck.point.x), Double(head.point.y - neck.point.y))
-        let rawHeadOffset = headDist / torsoHeight
+        // 3. Raw Metric Calculations
+        let headDist = hypot(Double(head.point.x - neck.point.x), Double(head.point.y - neck.point.y))
+        let rawHeadOffset = headDist / currentTorsoHeight
 
-        // B. Shoulder Width Ratio: shoulder width relative to neck-to-torso height
-        let shoulderWidth = hypot(dxShoulders, dyShoulders)
-        let rawWidthRatio = shoulderWidth / torsoHeight
+        let shoulderAngleRad = atan2(dyShoulders, dxShoulders)
+        let rawShoulderTiltDegrees = abs(shoulderAngleRad * 180.0 / .pi)
 
-        // 3. Smooth Metrics (Exponential Moving Average)
+        let torsoAngleRad = atan2(dxTorso, dyTorso)
+        let rawTorsoLeanDegrees = abs(torsoAngleRad * 180.0 / .pi)
 
+        let rawWidthRatio = currentShoulderWidth / currentTorsoHeight
+
+        // 4. Temporal Smoothing (EMA)
         if !hasInitializedEMA {
             smoothedForwardHeadOffset  = rawHeadOffset
-            smoothedShoulderTilt       = rawShoulderTilt
-            smoothedTorsoLean          = rawTorsoLean
+            smoothedShoulderTilt       = rawShoulderTiltDegrees
+            smoothedTorsoLean          = rawTorsoLeanDegrees
             smoothedShoulderWidthRatio = rawWidthRatio
-            hasInitializedEMA = true
+            hasInitializedEMA          = true
         } else {
-            smoothedForwardHeadOffset  = (alpha * rawHeadOffset) + ((1.0 - alpha) * smoothedForwardHeadOffset)
-            smoothedShoulderTilt       = (alpha * rawShoulderTilt) + ((1.0 - alpha) * smoothedShoulderTilt)
-            smoothedTorsoLean          = (alpha * rawTorsoLean) + ((1.0 - alpha) * smoothedTorsoLean)
-            smoothedShoulderWidthRatio = (alpha * rawWidthRatio) + ((1.0 - alpha) * smoothedShoulderWidthRatio)
+            smoothedForwardHeadOffset  = alpha * rawHeadOffset           + (1.0 - alpha) * smoothedForwardHeadOffset
+            smoothedShoulderTilt       = alpha * rawShoulderTiltDegrees  + (1.0 - alpha) * smoothedShoulderTilt
+            smoothedTorsoLean          = alpha * rawTorsoLeanDegrees     + (1.0 - alpha) * smoothedTorsoLean
+            smoothedShoulderWidthRatio = alpha * rawWidthRatio           + (1.0 - alpha) * smoothedShoulderWidthRatio
         }
 
-        // 4. Evaluate Posture Issues Relative to Calibrated Baseline
-
+        // 5. Evaluate Deviations against Baseline
         var issues: [PostureIssue] = []
+        var totalPenalty: Double = 0.0
 
-        // Issue 1: Forward Head Posture (head dropping/slouching forward compresses head-to-neck ratio relative to baseline)
-        let targetHeadOffset = baseline.isCalibrated ? baseline.headOffset : 0.35
-        let headCompression  = targetHeadOffset - smoothedForwardHeadOffset
-        
-        // --- 3D Modifier: Forward Head Verification ---
-        var isHeadProtruding = true // Default to true if 3D is not available
-        if let hz = head.zDepth, let tz = snapshot.torso?.zDepth {
-            // Negative Z is closer to the camera in Vision 3D coordinates.
-            // If the head isn't significantly closer to the camera than the torso, they aren't slouching forward.
-            if hz - tz > -0.05 { // 5cm tolerance
-                isHeadProtruding = false
+        // --- Issue 1: Forward Head ---
+        let baselineHeadOffset = baseline.isCalibrated ? baseline.headOffset : 0.0
+        let headDelta = smoothedForwardHeadOffset - baselineHeadOffset
+
+        if headDelta > Thresholds.forwardHeadMild {
+            let severity: PostureIssue.Severity
+            let penalty: Double
+
+            if headDelta > Thresholds.forwardHeadSevere {
+                severity = .severe; penalty = 35.0
+            } else if headDelta > Thresholds.forwardHeadModerate {
+                severity = .moderate; penalty = 20.0
+            } else {
+                severity = .mild; penalty = 10.0
             }
+            issues.append(PostureIssue(
+                type: .forwardHead,
+                severity: severity,
+                description: "Head is positioned forward past your shoulders."
+            ))
+            totalPenalty += penalty
         }
 
-        if headCompression > Thresholds.forwardHeadMild {
-            if isHeadProtruding {
-                let sev: PostureIssue.Severity =
-                    headCompression > Thresholds.forwardHeadSevere ? .severe :
-                    (headCompression > Thresholds.forwardHeadModerate ? .moderate : .mild)
-
-                issues.append(PostureIssue(
-                    type: .forwardHead,
-                    severity: sev,
-                    description: "Head is slouched forward from your calibrated baseline."
-                ))
-            }
-        }
-
-        // Issue 2: Shoulder Imbalance (relative to calibrated baseline shoulder tilt)
-        let targetShoulderTilt = baseline.isCalibrated ? baseline.shoulderTilt : 0.0
-        let shoulderTiltDelta  = abs(smoothedShoulderTilt - targetShoulderTilt)
-        
-        // --- 3D Modifier: Sitting at an Angle ---
-        var isSittingAtAngle = false
-        if let lz = lShoulder.zDepth, let rz = rShoulder.zDepth {
-            let currentZDiff = Double(lz - rz)
-            let baselineZDiff = baseline.isCalibrated ? baseline.shoulderZDiff : 0.0
-            
-            // If the Z difference between left and right shoulder deviates from baseline by > 5cm (0.05m),
-            // it means the user's torso is rotated relative to the camera!
-            if abs(currentZDiff - baselineZDiff) > 0.05 {
-                isSittingAtAngle = true
-            }
-        }
+        // --- Issue 2: Shoulder Imbalance ---
+        let baselineShoulderTilt = baseline.isCalibrated ? baseline.shoulderTilt : 0.0
+        let shoulderTiltDelta = abs(smoothedShoulderTilt - baselineShoulderTilt)
 
         if shoulderTiltDelta > Thresholds.shoulderTiltMild {
-            // Forgive the tilt if the user is just sitting at an angle
-            if !isSittingAtAngle {
-                let sev: PostureIssue.Severity =
-                    shoulderTiltDelta > Thresholds.shoulderTiltSevere ? .severe :
-                    (shoulderTiltDelta > Thresholds.shoulderTiltModerate ? .moderate : .mild)
+            let severity: PostureIssue.Severity
+            let penalty: Double
 
-                let side = (smoothedShoulderTilt - targetShoulderTilt) > 0 ? "Right" : "Left"
-                issues.append(PostureIssue(
-                    type: .shoulderImbalance,
-                    severity: sev,
-                    description: "\(side) shoulder is elevated from baseline."
-                ))
+            if shoulderTiltDelta > Thresholds.shoulderTiltSevere {
+                severity = .severe; penalty = 30.0
+            } else if shoulderTiltDelta > Thresholds.shoulderTiltModerate {
+                severity = .moderate; penalty = 18.0
+            } else {
+                severity = .mild; penalty = 8.0
             }
+            let highSide = smoothedShoulderTilt > 0 ? "right" : "left"
+            issues.append(PostureIssue(
+                type: .shoulderImbalance,
+                severity: severity,
+                description: "Your \(highSide) shoulder is raised higher than the other."
+            ))
+            totalPenalty += penalty
         }
 
-        // Issue 3: Torso Lean (relative to calibrated baseline torso lean)
-        let targetTorsoLean = baseline.isCalibrated ? baseline.torsoLean : 0.0
-        let torsoLeanDelta  = abs(smoothedTorsoLean - targetTorsoLean)
+        // --- Issue 3: Torso Lean ---
+        let baselineTorsoLean = baseline.isCalibrated ? baseline.torsoLean : 0.0
+        let torsoLeanDelta = abs(smoothedTorsoLean - baselineTorsoLean)
 
         if torsoLeanDelta > Thresholds.torsoLeanMild {
-            let sev: PostureIssue.Severity =
-                torsoLeanDelta > Thresholds.torsoLeanSevere ? .severe :
-                (torsoLeanDelta > Thresholds.torsoLeanModerate ? .moderate : .mild)
+            let severity: PostureIssue.Severity
+            let penalty: Double
 
-            let dir = (smoothedTorsoLean - targetTorsoLean) > 0 ? "right" : "left"
+            if torsoLeanDelta > Thresholds.torsoLeanSevere {
+                severity = .severe; penalty = 30.0
+            } else if torsoLeanDelta > Thresholds.torsoLeanModerate {
+                severity = .moderate; penalty = 18.0
+            } else {
+                severity = .mild; penalty = 8.0
+            }
+            let leanSide = dyTorso > 0 ? "right" : "left"
             issues.append(PostureIssue(
                 type: .torsoLean,
-                severity: sev,
-                description: "Torso is leaning \(dir) from baseline."
+                severity: severity,
+                description: "Leaning your upper body to the \(leanSide)."
             ))
+            totalPenalty += penalty
         }
 
-        // Issue 4: Rounded Shoulders (relative to calibrated baseline shoulder width ratio)
-        let targetWidthRatio = baseline.isCalibrated ? baseline.shoulderWidthRatio : 1.0
-        let relativeWidthCompression = smoothedShoulderWidthRatio / max(targetWidthRatio, 0.1)
-
-        if relativeWidthCompression < Thresholds.roundedShouldersRatioThreshold {
-            // Forgive the rounded shoulders penalty if the user is rotated in 3D space
-            if !isSittingAtAngle {
+        // --- Issue 4: Rounded Shoulders ---
+        if baseline.isCalibrated && baseline.shoulderWidthRatio > 0 {
+            let ratio = smoothedShoulderWidthRatio / baseline.shoulderWidthRatio
+            if ratio < Thresholds.roundedShouldersRatioThreshold {
+                let severity: PostureIssue.Severity = ratio < 0.78 ? .severe : (ratio < 0.84 ? .moderate : .mild)
+                let penalty: Double = ratio < 0.78 ? 25.0 : (ratio < 0.84 ? 15.0 : 8.0)
                 issues.append(PostureIssue(
                     type: .roundedShoulders,
-                    severity: .moderate,
-                    description: "Shoulders are rounded forward from baseline."
+                    severity: severity,
+                    description: "Shoulders are rolled forward and inward."
                 ))
+                totalPenalty += penalty
             }
         }
 
-        // 5. Compute Posture Score (0 - 100)
+        // 6. Final Score Calculation
+        let calculatedScore = max(0, min(100, Int(round(100.0 - totalPenalty))))
 
-        var score = 100
-        for issue in issues {
-            switch issue.severity {
-            case .mild:     score -= 10
-            case .moderate: score -= 20
-            case .severe:   score -= 30
-            }
-        }
-        score = max(0, min(100, score))
-
-        // Determine Overall Quality
         let quality: PostureQuality
-        switch score {
-        case 85...100: quality = .good
-        case 65..<85:  quality = .fair
+        switch calculatedScore {
+        case 80...100: quality = .good
+        case 60..<80:  quality = .fair
         default:       quality = .poor
         }
 
         return PostureAssessment(
             timestamp: Date(),
             quality: quality,
-            score: score,
+            score: calculatedScore,
             issues: issues,
             forwardHeadOffset: smoothedForwardHeadOffset,
             shoulderImbalanceDegrees: smoothedShoulderTilt,
@@ -244,15 +235,15 @@ final class PostureAnalyzer: @unchecked Sendable {
         )
     }
 
-    // MARK: — Noise Filter
+    // MARK: - Validation Helpers
 
     private func isSnapshotValid(_ snapshot: PostureSnapshot) -> Bool {
-        guard snapshot.isDetected else { return false }
-
-        let minConf: Float = 0.20
-        let reqJoints = [snapshot.head, snapshot.neck, snapshot.leftShoulder, snapshot.rightShoulder]
-
-        let validCount = reqJoints.compactMap { $0 }.filter { $0.confidence >= minConf }.count
-        return validCount >= 3
+        guard snapshot.isDetected,
+              let neck = snapshot.neck, neck.confidence >= 0.3,
+              let lShoulder = snapshot.leftShoulder, lShoulder.confidence >= 0.3,
+              let rShoulder = snapshot.rightShoulder, rShoulder.confidence >= 0.3 else {
+            return false
+        }
+        return true
     }
 }

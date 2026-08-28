@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- DeskReset Privacy Manifest — Required by Apple for App Store submission (Spring 2024+) -->
+
+    <!-- NSPrivacyTracking: We do NOT track users across apps or websites -->
+    <key>NSPrivacyTracking</key>
+    <false/>
+
+    <!-- NSPrivacyTrackingDomains: No tracking domains used -->
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <!-- NSPrivacyCollectedDataTypes: We collect NO data from users -->
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array/>
+
+    <!-- NSPrivacyAccessedAPITypes: APIs accessed and their reasons -->
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!-- Camera: Used solely for on-device posture analysis via Vision framework.
+             No camera frames are stored, transmitted, or shared. -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryCamera</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <!-- CA52.1: The camera is used to provide a feature that is visible to the user
+                     (real-time posture analysis displayed on screen). -->
+                <string>CA52.1</string>
+            </array>
+        </dict>
+
+        <!-- UserDefaults: Used to persist user preferences and onboarding state.
+             No personally identifiable information is stored. -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <!-- CA92.1: Used to access user-configured preferences within the app. -->
+                <string>CA92.1</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

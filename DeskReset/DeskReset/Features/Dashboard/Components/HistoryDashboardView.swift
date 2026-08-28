@@ -2,55 +2,202 @@
 //  HistoryDashboardView.swift
 //  DeskReset
 //
+//  Redesigned History tab matching Figma dark design:
+//  3 stat cards · 7-Day bar trend · Daily Report list
+//
 
 import SwiftUI
 import SwiftData
+import Charts
 
 struct HistoryDashboardView: View {
 
     let viewModel: DashboardViewModel
-    @Environment(\.colorScheme) private var colorScheme
+
+    // MARK: — Computed helpers
+
+    private var bestDayReport: DailyHistoryReport? {
+        viewModel.dailyReports.max(by: { $0.averageScore < $1.averageScore })
+    }
+
+    private var last7Days: [DailyHistoryReport] {
+        Array(viewModel.dailyReports.prefix(7).reversed())
+    }
+
+    private var scoreLabel: String {
+        switch viewModel.averagePostureScore {
+        case 85...100: return "Excellent overall"
+        case 65..<85:  return "Good overall"
+        case 40..<65:  return "Fair overall"
+        case 1..<40:   return "Needs work"
+        default:       return "No data yet"
+        }
+    }
+
+    // Color per score — matches Figma: green 80+, purple 70-79, red <70
+    private func barColor(for score: Int) -> Color {
+        switch score {
+        case 80...100: return Color(red: 0.11, green: 0.42, blue: 0.35)   // dark teal-green
+        case 70..<80:  return DashboardView.purpleAccent                   // purple
+        default:       return Color(red: 0.55, green: 0.16, blue: 0.16)   // dark red
+        }
+    }
+
+    // MARK: — Body
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Header stats
-            HStack(spacing: 14) {
-                // Total Scans Card
-                HistoryStatCard(
-                    title: "Total Scans",
-                    value: "\(viewModel.totalScansCount)",
-                    subtitle: "checks evaluated",
-                    icon: "scope",
-                    accentColor: .brandPrimary
-                )
-                
-                // Average Score Card
-                HistoryStatCard(
-                    title: "Average Score",
-                    value: viewModel.averagePostureScore > 0 ? "\(viewModel.averagePostureScore)" : "—",
-                    subtitle: scoreText(viewModel.averagePostureScore),
-                    icon: "chart.bar.fill",
-                    accentColor: Color.postureScoreColor(for: viewModel.averagePostureScore)
-                )
-            }
+            statCardsRow
+            sevenDayTrend
+            dailyReportSection
+        }
+    }
 
-            // Daily Wise Report Section
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Daily History Report")
-                    .font(.headline)
-                    .foregroundStyle(.textPrimary)
-                    .padding(.top, 4)
+    // MARK: — Stat Cards
+
+    private var statCardsRow: some View {
+        HStack(spacing: 14) {
+            // Total Scans
+            DarkHistoryStatCard(
+                label: "TOTAL SCANS",
+                value: "\(viewModel.totalScansCount)",
+                subtitle: "checks evaluated",
+                subtitleColor: DashboardView.purpleAccent
+            )
+
+            // Average Score
+            DarkHistoryStatCard(
+                label: "AVERAGE SCORE",
+                value: viewModel.averagePostureScore > 0 ? "\(viewModel.averagePostureScore)" : "—",
+                subtitle: scoreLabel,
+                subtitleColor: DashboardView.purpleAccent
+            )
+
+            // Best Day
+            DarkHistoryStatCard(
+                label: "BEST DAY",
+                value: bestDayReport != nil ? "\(bestDayReport!.averageScore)" : "—",
+                subtitle: bestDayReport != nil
+                    ? bestDayReport!.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+                    : "No data",
+                subtitleColor: Color(red: 0.063, green: 0.725, blue: 0.506) // teal-green
+            )
+        }
+    }
+
+    // MARK: — 7-Day Trend
+
+    private var sevenDayTrend: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(DashboardView.cardBg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(DashboardView.cardBorder, lineWidth: 1)
+                )
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("7-Day Trend")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(DashboardView.textPrimW)
+
+                if last7Days.isEmpty {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.system(size: 28))
+                                .foregroundStyle(DashboardView.textTertW)
+                            Text("No data for the last 7 days")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(DashboardView.textSecW)
+                        }
+                        .padding(.vertical, 24)
+                        Spacer()
+                    }
+                } else {
+                    trendBars
+                }
+            }
+            .padding(18)
+        }
+    }
+
+    private var trendBars: some View {
+        let today = Calendar.current.startOfDay(for: Date())
+        return HStack(alignment: .bottom, spacing: 10) {
+            ForEach(last7Days) { report in
+                let isToday = Calendar.current.isDate(report.date, inSameDayAs: today)
+                let color = barColor(for: report.averageScore)
+                let barH = max(20, CGFloat(report.averageScore) * 1.1)
+
+                VStack(spacing: 5) {
+                    // Score label above bar
+                    Text("\(report.averageScore)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(DashboardView.textSecW)
+
+                    // Bar
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(color)
+                        .frame(height: barH)
+                        .frame(maxWidth: .infinity)
+                        .shadow(color: color.opacity(0.4), radius: 4, y: 2)
+
+                    // Day label below bar
+                    Text(report.date.formatted(.dateTime.weekday(.abbreviated)))
+                        .font(.system(size: 10, weight: isToday ? .bold : .medium))
+                        .foregroundStyle(isToday ? DashboardView.textPrimW : DashboardView.textSecW)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(height: 130)
+    }
+
+    // MARK: — Daily Report Section
+
+    private var dailyReportSection: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(DashboardView.cardBg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(DashboardView.cardBorder, lineWidth: 1)
+                )
+
+            VStack(alignment: .leading, spacing: 0) {
+                // Section header
+                HStack {
+                    Text("Daily Report")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(DashboardView.textPrimW)
+                    Spacer()
+                    Text("\(viewModel.dailyReports.count) days")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(DashboardView.textSecW)
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
 
                 if viewModel.dailyReports.isEmpty {
                     emptyState
+                        .padding(18)
                 } else {
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 10) {
-                            ForEach(viewModel.dailyReports) { report in
-                                DailyReportRow(report: report)
+                    // Rows with dividers
+                    VStack(spacing: 0) {
+                        ForEach(Array(viewModel.dailyReports.enumerated()), id: \.element.id) { idx, report in
+                            DarkDailyReportRow(report: report)
+
+                            if idx < viewModel.dailyReports.count - 1 {
+                                Divider()
+                                    .overlay(DashboardView.cardBorder)
+                                    .padding(.horizontal, 18)
                             }
                         }
                     }
+                    .padding(.bottom, 8)
                 }
             }
         }
@@ -61,225 +208,125 @@ struct HistoryDashboardView: View {
             Spacer()
             VStack(spacing: 8) {
                 Image(systemName: "clock.arrow.circlepath")
-                    .font(.largeTitle)
-                    .foregroundStyle(.textTertiary)
+                    .font(.largeTitle).foregroundStyle(DashboardView.textTertW)
                 Text("No scan history recorded yet")
-                    .font(.subheadline)
-                    .foregroundStyle(.textSecondary)
+                    .font(.subheadline).foregroundStyle(DashboardView.textSecW)
                 Text("Start monitoring to build your history dashboard.")
-                    .font(.caption2)
-                    .foregroundStyle(.textTertiary)
+                    .font(.caption2).foregroundStyle(DashboardView.textTertW)
             }
-            .padding(.vertical, 40)
+            .padding(.vertical, 32)
             Spacer()
-        }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .background {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color.white.opacity(0.04))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.14), Color.white.opacity(0.0)],
-                        startPoint: .top, endPoint: .center
-                    )
-                )
-                .allowsHitTesting(false)
-        }
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.drGlassSpecularBorder, lineWidth: 1))
-    }
-
-    private func scoreText(_ score: Int) -> String {
-        switch score {
-        case 80...100: return "Excellent"
-        case 60..<80:  return "Good"
-        case 40..<60:  return "Fair"
-        case 1..<40:   return "Needs Work"
-        default:       return "No scans yet"
         }
     }
 }
 
-// MARK: - History Stat Card
+// MARK: — Dark Stat Card
 
-struct HistoryStatCard: View {
-    let title: String
+struct DarkHistoryStatCard: View {
+    let label: String
     let value: String
     let subtitle: String
-    let icon: String
-    let accentColor: Color
-
-    @State private var isHovered = false
+    let subtitleColor: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(accentColor.opacity(0.12))
-                        .frame(width: 34, height: 34)
-                    Image(systemName: icon)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(accentColor)
-                }
-                Spacer()
-            }
+            Text(label)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(DashboardView.textTertW)
+                .tracking(0.7)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value)
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                    .foregroundStyle(.textPrimary)
+            Text(value)
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .foregroundStyle(DashboardView.textPrimW)
+                .contentTransition(.numericText())
 
-                Text(title)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.textPrimary)
-
-                Text(subtitle)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(.textSecondary)
-            }
+            Text(subtitle)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(subtitleColor)
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // ── Glassmorphism ────────────────────────────────────────────────
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .background {
+        .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(isHovered ? Color.brandPrimary.opacity(0.08) : Color.white.opacity(0.04))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.0)],
-                        startPoint: .top, endPoint: .center
-                    )
-                )
-                .allowsHitTesting(false)
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(
-                    isHovered ? Color.brandSecondary.opacity(0.5) : Color.drGlassSpecularBorder,
-                    lineWidth: isHovered ? 1.5 : 1.0
+                .fill(DashboardView.cardBg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(DashboardView.cardBorder, lineWidth: 1)
                 )
         )
-        .shadow(
-            color: isHovered ? Color.brandPrimary.opacity(0.18) : Color.black.opacity(0.08),
-            radius: isHovered ? 10 : 5, y: isHovered ? 4 : 2
-        )
-        .scaleEffect(isHovered ? 1.012 : 1.0)
-        .onHover { isHovered = $0 }
-        .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 }
 
-// MARK: - Daily Report Row
+// MARK: — Dark Daily Report Row
 
-struct DailyReportRow: View {
+struct DarkDailyReportRow: View {
     let report: DailyHistoryReport
     @State private var isHovered = false
 
+    private var scoreColor: Color { Color.postureScoreColor(for: report.averageScore) }
+    private var issueDotColor: Color {
+        report.topIssue != nil
+            ? Color(red: 0.961, green: 0.620, blue: 0.043)   // amber for issues
+            : Color(red: 0.063, green: 0.725, blue: 0.506)   // green for clean
+    }
+
     var body: some View {
         HStack(spacing: 14) {
-            // Date Column
+            // Date column
             VStack(alignment: .leading, spacing: 2) {
-                Text(report.date.formatted(.dateTime.weekday().month().day()))
+                Text(report.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.textPrimary)
+                    .foregroundStyle(DashboardView.textPrimW)
                 Text(report.date.formatted(.dateTime.year()))
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.textSecondary)
+                    .foregroundStyle(DashboardView.textTertW)
             }
-            .frame(width: 80, alignment: .leading)
+            .frame(width: 90, alignment: .leading)
 
-            Divider()
-                .frame(height: 24)
-
-            // Top Issue column
-            HStack(spacing: 6) {
-                if let issue = report.topIssue, let icon = report.topIssueIcon {
-                    Image(systemName: icon)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color.statusWarning)
+            // Issue dot + label
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(issueDotColor)
+                    .frame(width: 7, height: 7)
+                if let issue = report.topIssue {
                     Text(issue)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.textPrimary)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DashboardView.textSecW)
                         .lineLimit(1)
-                } else if report.averageScore > 0 {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color.statusSuccess)
-                    Text("Perfect Alignment")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.textPrimary)
                 } else {
-                    Image(systemName: "figure.stand")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.textTertiary)
-                    Text("No scans evaluated")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.textSecondary)
+                    Text("Perfect Alignment")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DashboardView.textSecW)
                 }
             }
 
             Spacer()
 
-            // Scans Count Badge
-            HStack(spacing: 3) {
-                Image(systemName: "scope")
-                    .font(.system(size: 9))
-                Text("\(report.totalScans) scan\(report.totalScans == 1 ? "" : "s")")
-                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+            // Scan count
+            HStack(spacing: 4) {
+                Image(systemName: "clock")
+                    .font(.system(size: 9, weight: .medium))
+                Text("\(report.totalScans) scans")
+                    .font(.system(size: 10.5, weight: .medium))
             }
-            .foregroundStyle(.textSecondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.textPrimary.opacity(0.04), in: Capsule())
+            .foregroundStyle(DashboardView.textTertW)
 
-            // Score Badge
+            // Score badge
             ZStack {
-                Circle()
-                    .fill(Color.postureScoreColor(for: report.averageScore).opacity(0.12))
-                    .frame(width: 32, height: 32)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(scoreColor)
+                    .frame(width: 40, height: 30)
                 Text(report.averageScore > 0 ? "\(report.averageScore)" : "—")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.postureScoreColor(for: report.averageScore))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        // ── Glassmorphism ────────────────────────────────────────────────
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .background {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(isHovered ? Color.brandPrimary.opacity(0.07) : Color.white.opacity(0.03))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.14), Color.white.opacity(0.0)],
-                        startPoint: .top, endPoint: .center
-                    )
-                )
-                .allowsHitTesting(false)
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(
-                    isHovered ? Color.brandSecondary.opacity(0.45) : Color.drGlassSpecularBorder,
-                    lineWidth: isHovered ? 1.5 : 1.0
-                )
-        )
-        .shadow(
-            color: isHovered ? Color.brandPrimary.opacity(0.15) : Color.black.opacity(0.07),
-            radius: isHovered ? 8 : 4, y: isHovered ? 3 : 2
-        )
-        .scaleEffect(isHovered ? 1.008 : 1.0)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 13)
+        .background(isHovered ? DashboardView.purpleAccent.opacity(0.06) : Color.clear)
+        .contentShape(Rectangle())
         .onHover { isHovered = $0 }
-        .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .animation(.easeInOut(duration: 0.12), value: isHovered)
     }
 }

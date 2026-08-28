@@ -86,6 +86,10 @@ final class MenuBarViewModel {
         postureScore    = postureService?.postureScore ?? 100
         todayScore      = postureScore
         Logger.ui.info("MenuBar: startMonitoring()")
+        
+        AnalyticsService.shared.log(.quickActionTriggered(source: "menu_bar", action: "start_monitoring"))
+        AnalyticsService.shared.log(.monitoringStarted(isCalibrated: isCalibrated, source: "menu_bar"))
+        AnalyticsService.shared.setCrashlyticsKey("monitoring_active", value: "true")
     }
 
     func stopMonitoring() {
@@ -93,6 +97,10 @@ final class MenuBarViewModel {
         monitoringState = .inactive
         statusMessage   = "Monitoring stopped"
         Logger.ui.info("MenuBar: stopMonitoring()")
+        
+        AnalyticsService.shared.log(.quickActionTriggered(source: "menu_bar", action: "stop_monitoring"))
+        AnalyticsService.shared.log(.monitoringStopped(durationSeconds: 0, scanCount: 0, source: "menu_bar"))
+        AnalyticsService.shared.setCrashlyticsKey("monitoring_active", value: "false")
     }
 
     func refreshPostureStatus() {

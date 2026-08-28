@@ -35,6 +35,7 @@ final class BreakService: BreakServiceProtocol {
             session.wasCompleted = true
             modelContext?.insert(session)
             try? modelContext?.save()
+            AnalyticsService.shared.log(.breakTaken(durationMinutes: max(1, Int(session.duration / 60))))
         }
         isOnBreak      = false
         currentSession = nil

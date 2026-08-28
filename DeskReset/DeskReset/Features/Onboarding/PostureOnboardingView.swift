@@ -165,6 +165,12 @@ struct PostureOnboardingView: View {
             withAnimation(.easeOut(duration: 0.6)) {
                 animateHero = true
             }
+            // Track: user entered onboarding for the first time
+            AnalyticsService.shared.log(.onboardingStarted)
+            AnalyticsService.shared.log(.onboardingStepViewed(
+                stepIndex: currentStep.rawValue,
+                stepName: currentStep.title
+            ))
         }
     }
 
@@ -499,6 +505,7 @@ struct PostureOnboardingView: View {
             // Skip
             if !isLastStep {
                 Button("Skip Setup") {
+                    AnalyticsService.shared.log(.onboardingSkipped(atStep: stepIndex))
                     onComplete()
                 }
                 .font(.system(size: 12, weight: .medium))
@@ -510,6 +517,7 @@ struct PostureOnboardingView: View {
             // Next / Finish
             Button {
                 if isLastStep {
+                    AnalyticsService.shared.log(.onboardingCompleted)
                     onComplete()
                 } else {
                     navigateTo(stepIndex + 1)
@@ -536,6 +544,11 @@ struct PostureOnboardingView: View {
     private func navigateTo(_ index: Int) {
         guard let target = OnboardingStep(rawValue: index) else { return }
         let forward = index > stepIndex
+        // Track step progression
+        AnalyticsService.shared.log(.onboardingStepViewed(
+            stepIndex: index,
+            stepName: target.title
+        ))
         withAnimation(.spring(duration: 0.35)) {
             slideOffset = forward ? 30 : -30
             contentOpacity = 0.0

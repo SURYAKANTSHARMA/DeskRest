@@ -14,6 +14,7 @@ import CoreMedia
 import SwiftData
 
 @Observable
+@MainActor
 final class PostureService: PostureServiceProtocol {
 
     // MARK: - Published State
@@ -60,16 +61,14 @@ final class PostureService: PostureServiceProtocol {
     ) {
         self.cameraService = cameraService
         self.baseline      = baseline
+        Logger.services.info("PostureService initialized")
     }
 
-    func setCameraService(_ cameraService: any CameraServiceProtocol) {
-        self.cameraService = cameraService
-    }
+    // MARK: - Baseline
 
     func updateBaseline(_ baseline: PostureBaseline) {
         self.baseline = baseline
-        postureAnalyzer.resetSmoothing()
-        Logger.services.info("PostureService baseline updated — isCalibrated=\(baseline.isCalibrated)")
+        Logger.services.info("PostureService: baseline updated — isCalibrated=\(baseline.isCalibrated)")
     }
 
     // MARK: - Actions
@@ -84,7 +83,7 @@ final class PostureService: PostureServiceProtocol {
         Logger.services.info("PostureService: startMonitoring()")
 
         frameTask?.cancel()
-        frameTask = Task { [weak self] in
+        frameTask = Task { @MainActor [weak self] in
             guard let self else { return }
 
             _ = await cameraService.requestPermission()
@@ -95,72 +94,67 @@ final class PostureService: PostureServiceProtocol {
                 
                 do {
                     try await cameraService.start()
-                    // Enforce a strict 3.0 second timeout using a TaskGroup race
-                    do {
-                        try await withThrowingTaskGroup(of: Void.self) { group in
-                            // Task 1: Frame processing stream
-                            group.addTask {
-                                let stream = cameraService.frameStream()
-                                var validFramesCount = 0
-                                
-                                for await sampleBuffer in stream {
-                                    guard !Task.isCancelled, self.isMonitoring else { break }
-                                    
-                                    let snapshot = self.visionAnalyzer.analyze(sampleBuffer: sampleBuffer)
-                                    if let snapshot = snapshot {
-                                        let assessment = self.postureAnalyzer.analyze(snapshot: snapshot, baseline: self.baseline)
-                                        
-                                        validFramesCount += 1
-                                        if validFramesCount >= 3 {
-                                            await MainActor.run {
-                                                self.currentSnapshot   = snapshot
-                                                self.currentAssessment = assessment
-                                                self.postureScore  = assessment.score
-                                                self.lastRunStatus = .success
-                                                
-                                                let log = PostureLog(score: assessment.score, issuesSummary: assessment.summaryText)
-                                                self.modelContext?.insert(log)
-                                                try? self.modelContext?.save()
-                                            }
-                                            break // Got a good reading, stop processing frames
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Task 2: Strict hardware timeout clock
-                            group.addTask {
-                                try await Task.sleep(nanoseconds: 3_000_000_000)
-                                throw CancellationError() // Timeout reached! Cancel the stream.
-                            }
-                            
-                            // First task to finish wins, the other gets cancelled
-                            _ = try await group.next()
-                            group.cancelAll()
+                    
+                    let startTime = Date()
+                    var validFramesCount = 0
+                    var latestResult: (PostureSnapshot, PostureAssessment)? = nil
+
+                    let stream = cameraService.frameStream()
+                    for await sampleBuffer in stream {
+                        guard !Task.isCancelled, self.isMonitoring else { break }
+
+                        if Date().timeIntervalSince(startTime) >= 3.0 {
+                            break // 3-second hardware timeout
                         }
-                    } catch {
-                        Logger.services.info("Camera polling loop timed out (3.0s) — user away from desk or camera stuck.")
-                        await MainActor.run {
-                            self.currentSnapshot = nil
-                            self.currentAssessment = nil
-                            self.postureScore = 0
-                            self.lastRunStatus = .personNotDetected
-                            
-                            let log = PostureLog(score: 0, issuesSummary: "Away")
-                            self.modelContext?.insert(log)
-                            try? self.modelContext?.save()
+
+                        if let snapshot = self.visionAnalyzer.analyze(sampleBuffer: sampleBuffer) {
+                            let assessment = self.postureAnalyzer.analyze(snapshot: snapshot, baseline: self.baseline)
+                            validFramesCount += 1
+                            latestResult = (snapshot, assessment)
+                            if validFramesCount >= 3 {
+                                break // Got 3 valid frames, done
+                            }
                         }
                     }
-                    
+
+                    if let (snapshot, assessment) = latestResult, validFramesCount >= 3 {
+                        self.currentSnapshot   = snapshot
+                        self.currentAssessment = assessment
+                        self.postureScore      = assessment.score
+                        self.lastRunStatus     = .success
+
+                        let log = PostureLog(score: assessment.score, issuesSummary: assessment.summaryText)
+                        self.modelContext?.insert(log)
+                        try? self.modelContext?.save()
+
+                        let topIssue = assessment.issues.first?.type.rawValue
+                        let label = assessment.score >= 80 ? "Good" : (assessment.score >= 60 ? "Fair" : "Poor")
+                        AnalyticsService.shared.log(.postureScanCompleted(
+                            score: assessment.score,
+                            scoreLabel: label,
+                            topIssue: topIssue
+                        ))
+                        AnalyticsService.shared.setCrashlyticsKey("last_score", value: "\(assessment.score)")
+                    } else {
+                        Logger.services.info("Posture scan timed out (3.0s) — user away from desk or camera stuck.")
+                        self.currentSnapshot   = nil
+                        self.currentAssessment = nil
+                        self.postureScore      = 0
+                        self.lastRunStatus     = .personNotDetected
+
+                        let log = PostureLog(score: 0, issuesSummary: "Away")
+                        self.modelContext?.insert(log)
+                        try? self.modelContext?.save()
+
+                        AnalyticsService.shared.log(.postureScanFailed(reason: "person_not_detected_away"))
+                    }
+
                     cameraService.stop()
-                    
-                    await MainActor.run {
-                        self.nextCheckTime = Date.now.addingTimeInterval(self.monitoringInterval)
-                    }
-                    
+                    self.nextCheckTime = Date.now.addingTimeInterval(self.monitoringInterval)
+
                     // Sleep until next interval
                     try await Task.sleep(nanoseconds: UInt64(self.monitoringInterval * 1_000_000_000))
-                    
+
                 } catch {
                     Logger.services.error("PostureService monitoring polling loop error: \(error)")
                     try? await Task.sleep(nanoseconds: 5_000_000_000) // retry in 5s on error
@@ -180,9 +174,5 @@ final class PostureService: PostureServiceProtocol {
         lastRunStatus = .noScanYet
         cameraService?.stop()
         Logger.services.info("PostureService: stopMonitoring()")
-    }
-
-    deinit {
-        frameTask?.cancel()
     }
 }

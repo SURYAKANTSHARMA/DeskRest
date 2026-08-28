@@ -45,96 +45,85 @@ final class VisionPoseAnalyzer: @unchecked Sendable {
         guard let observation = request.results?.first else {
             return nil
         }
-        
-        var obs3D: Any? = nil
-        if let req3D = request3D {
-            do {
-                try handler.perform([req3D])
-                if #available(macOS 14.0, *) {
-                    obs3D = req3D.results?.first as? VNHumanBodyPose3DObservation
-                }
-            } catch {
-                // Ignore 3D errors (e.g. ABPK unsupported on some devices), we'll just fall back to 2D
-                Logger.services.debug("Vision 3D request skipped/failed: \(error)")
-            }
-        }
 
-        return extractSnapshot(from: observation, obs3D: obs3D)
-    }
-
-    // MARK: — Joint Extraction
-
-    private func extractSnapshot(from observation: VNHumanBodyPoseObservation, obs3D: Any?) -> PostureSnapshot {
-        // Minimum confidence threshold for joint acceptance
-        let minConfidence: Float = 0.15
-
-        func joint(_ key: VNHumanBodyPoseObservation.JointName, name: String, key3D: Any? = nil) -> PostureJoint? {
-            guard let pt = try? observation.recognizedPoint(key), pt.confidence >= minConfidence else {
-                return nil
-            }
-            var zDepth: Float? = nil
-            if #available(macOS 14.0, *) {
-                if let obs = obs3D as? VNHumanBodyPose3DObservation,
-                   let k3 = key3D as? VNHumanBodyPose3DObservation.JointName,
-                   let pt3D = try? obs.recognizedPoint(k3) {
-                    zDepth = pt3D.position.columns.3.z
-                }
-            }
-            return PostureJoint(name: name, point: pt.location, confidence: pt.confidence, zDepth: zDepth)
-        }
-
-        // 1. Head (Nose or eyes/ears)
-        let head = joint(.nose, name: "Head", key3D: {
-            if #available(macOS 14.0, *) { return VNHumanBodyPose3DObservation.JointName.centerHead } else { return nil }
-        }()) ?? joint(.leftEye, name: "Head")
-
-        // 2. Neck
-        let neck = joint(.neck, name: "Neck") // 3D neck not strictly needed for this, but could be mapped
-
-        // 3. Left Shoulder
-        let leftShoulder = joint(.leftShoulder, name: "Left Shoulder", key3D: {
-            if #available(macOS 14.0, *) { return VNHumanBodyPose3DObservation.JointName.leftShoulder } else { return nil }
-        }())
-
-        // 4. Right Shoulder
-        let rightShoulder = joint(.rightShoulder, name: "Right Shoulder", key3D: {
-            if #available(macOS 14.0, *) { return VNHumanBodyPose3DObservation.JointName.rightShoulder } else { return nil }
-        }())
-
-        // 5. Torso (Root / Hip midpoint)
-        let torso = joint(.root, name: "Torso", key3D: {
-            if #available(macOS 14.0, *) { return VNHumanBodyPose3DObservation.JointName.root } else { return nil }
-        }()) ?? joint(.leftHip, name: "Torso")
-
-        // Collect all available body joints for overlay rendering
-        var all: [PostureJoint] = []
-
-        let keysToExtract: [(VNHumanBodyPoseObservation.JointName, String)] = [
-            (.nose, "Nose"),
-            (.leftEye, "Left Eye"), (.rightEye, "Right Eye"),
-            (.leftEar, "Left Ear"), (.rightEar, "Right Ear"),
-            (.neck, "Neck"),
-            (.leftShoulder, "Left Shoulder"), (.rightShoulder, "Right Shoulder"),
-            (.leftElbow, "Left Elbow"), (.rightElbow, "Right Elbow"),
-            (.leftWrist, "Left Wrist"), (.rightWrist, "Right Wrist"),
-            (.root, "Torso"),
-            (.leftHip, "Left Hip"), (.rightHip, "Right Hip")
+        // Extract key body joints needed for ergonomic posture analysis
+        let jointKeys: [VNHumanBodyPoseObservation.JointName] = [
+            .nose,
+            .neck,
+            .leftShoulder,
+            .rightShoulder,
+            .root,
+            .leftEar,
+            .rightEar
         ]
 
-        for (key, label) in keysToExtract {
-            if let j = joint(key, name: label) {
-                all.append(j)
+        var recognizedPoints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint] = [:]
+        for key in jointKeys {
+            if let point = try? observation.recognizedPoint(key), point.confidence > 0.3 {
+                recognizedPoints[key] = point
             }
         }
+
+        // Require minimum keypoints for a valid posture assessment
+        guard let neckPoint  = recognizedPoints[.neck],
+              let lShoulder  = recognizedPoints[.leftShoulder],
+              let rShoulder  = recognizedPoints[.rightShoulder] else {
+            return nil
+        }
+
+        let headPoint = recognizedPoints[.nose] ?? recognizedPoints[.neck]
+
+        // --- 3D Depth Detection for Torso Rotation (macOS 14+) ---
+        var lShoulderZ: Float? = nil
+        var rShoulderZ: Float? = nil
+
+        if #available(macOS 14.0, *), let req3D = request3D as? VNDetectHumanBodyPose3DRequest {
+            do {
+                try handler.perform([req3D])
+                if let obs3D = req3D.results?.first {
+                    if let pLeft = try? obs3D.recognizedPoint(.leftShoulder) {
+                        // camera-relative position vector in meters (x, y, z)
+                        lShoulderZ = pLeft.position.columns.3.z
+                    }
+                    if let pRight = try? obs3D.recognizedPoint(.rightShoulder) {
+                        rShoulderZ = pRight.position.columns.3.z
+                    }
+                }
+            } catch {
+                // 3D pose detection failed gracefully — fallback to 2D ratio estimation
+            }
+        }
+
+        let headJoint = headPoint.map { PostureJoint(name: "Head", point: $0.location, confidence: $0.confidence) }
+        let neckJoint = PostureJoint(name: "Neck", point: neckPoint.location, confidence: neckPoint.confidence)
+        let leftShoulderJoint = PostureJoint(
+            name: "Left Shoulder",
+            point: lShoulder.location,
+            confidence: lShoulder.confidence,
+            zDepth: lShoulderZ
+        )
+        let rightShoulderJoint = PostureJoint(
+            name: "Right Shoulder",
+            point: rShoulder.location,
+            confidence: rShoulder.confidence,
+            zDepth: rShoulderZ
+        )
+        let torsoJoint = recognizedPoints[.root].map {
+            PostureJoint(name: "Torso", point: $0.location, confidence: $0.confidence)
+        }
+
+        var allJoints: [PostureJoint] = [neckJoint, leftShoulderJoint, rightShoulderJoint]
+        if let h = headJoint { allJoints.append(h) }
+        if let t = torsoJoint { allJoints.append(t) }
 
         return PostureSnapshot(
             timestamp: Date(),
-            head: head,
-            neck: neck,
-            leftShoulder: leftShoulder,
-            rightShoulder: rightShoulder,
-            torso: torso,
-            allJoints: all
+            head: headJoint,
+            neck: neckJoint,
+            leftShoulder: leftShoulderJoint,
+            rightShoulder: rightShoulderJoint,
+            torso: torsoJoint,
+            allJoints: allJoints
         )
     }
 }
