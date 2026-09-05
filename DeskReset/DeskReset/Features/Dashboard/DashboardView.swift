@@ -20,6 +20,7 @@ struct DashboardView: View {
     @State private var selectedSidebar: SidebarItem = .overview
     @State private var showCalibrationSheet: Bool = false
     @State private var showRecoveryRoutineSheet: Bool = false
+    @State private var showRatingPrompt: Bool = false
     @State private var selectedCoachTab: CoachTab = .deskFix
     @State private var monitoringDotPulse: Bool = false
     @State private var scoreRingAnimate: Bool = false
@@ -108,6 +109,16 @@ struct DashboardView: View {
                         selectedSidebar = .settings
                     }
                 }
+                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowRatingPrompt"))) { _ in
+                    showRatingPrompt = true
+                }
+                .sheet(isPresented: $showRatingPrompt) {
+                    AppRatingPromptView()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .postureScanDidComplete)) { _ in
+                    viewModel.loadStats(modelContext: modelContext)
+                    viewModel.refreshMonitoringState()
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -116,6 +127,16 @@ struct DashboardView: View {
         }
         .onChange(of: serviceLocator.postureService.nextCheckTime) { _, _ in
             viewModel.loadStats(modelContext: modelContext)
+            viewModel.refreshMonitoringState()
+        }
+        .onChange(of: serviceLocator.postureService.postureScore) { _, _ in
+            viewModel.loadStats(modelContext: modelContext)
+        }
+        .onChange(of: serviceLocator.postureService.lastRunStatus) { _, _ in
+            viewModel.loadStats(modelContext: modelContext)
+        }
+        .onChange(of: serviceLocator.postureService.isMonitoring) { _, _ in
+            viewModel.refreshMonitoringState()
         }
         .animation(.spring(duration: 0.5), value: viewModel.showOnboarding)
     }
@@ -721,7 +742,15 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showRecoveryRoutineSheet) {
             if let routine = viewModel.aiCoachGuidance?.routine {
-                RecoveryRoutineView(routine: routine)
+                RecoveryRoutineView(routine: routine) {
+                    AppRatingService.shared.recordRoutineCompleted()
+                    if AppRatingService.shared.shouldPromptForRating() {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            AppRatingService.shared.recordPromptShown(trigger: "recovery_routine_completion")
+                            showRatingPrompt = true
+                        }
+                    }
+                }
             }
         }
     }
@@ -782,21 +811,15 @@ struct DashboardView: View {
         return "Today · \(fmt.string(from: first.time).lowercased()) – \(fmt.string(from: last.time).lowercased())"
     }
 
-    private struct ScorePoint: Identifiable { let id = UUID(); let time: Date; let score: Int }
-
-    private var chartData: [ScorePoint] {
-        guard viewModel.todayScansCount > 0 && viewModel.averageScore > 0 else { return [] }
-        let now = Date(); let calendar = Calendar.current
-        let base = viewModel.averageScore; let spread = max(3, 12 - viewModel.todayScansCount)
-        var points: [ScorePoint] = []
-        let count = min(viewModel.todayScansCount, 20)
-        for i in stride(from: -count, through: 0, by: 1) {
-            if let t = calendar.date(byAdding: .minute, value: i * 15, to: now) {
-                let jitter = Int.random(in: -spread...spread)
-                points.append(ScorePoint(time: t, score: max(40, min(100, base + jitter))))
+    private var chartData: [ScoreTimelinePoint] {
+        if !viewModel.todayTimelinePoints.isEmpty {
+            if viewModel.todayTimelinePoints.count == 1, let single = viewModel.todayTimelinePoints.first {
+                let earlier = ScoreTimelinePoint(time: single.time.addingTimeInterval(-60), score: single.score)
+                return [earlier, single]
             }
+            return viewModel.todayTimelinePoints
         }
-        return points
+        return []
     }
 
     @ViewBuilder
@@ -984,6 +1007,27 @@ struct DashboardView: View {
                         settingsRow(label: "Developer", value: "Suryakant Sharma")
                         Divider().overlay(DashboardView.cardBorder)
                         settingsRow(label: "Copyright", value: "© 2025 DeskReset")
+                    }
+                }
+
+                // ── App Store & Community ─────────────────────────────────
+                settingsSectionCard(icon: "star.fill", title: "App Store & Community") {
+                    VStack(spacing: 0) {
+                        legalLinkRow(
+                            icon: "star.fill",
+                            label: "Rate DeskReset on Mac App Store",
+                            color: Color(red: 0.99, green: 0.76, blue: 0.18)
+                        ) {
+                            AppRatingService.shared.rateOnAppStore(source: "dashboard_settings")
+                        }
+                        Divider().overlay(DashboardView.cardBorder)
+                        legalLinkRow(
+                            icon: "envelope.fill",
+                            label: "Contact Developer & Send Feedback",
+                            color: DashboardView.cyanAccent
+                        ) {
+                            AppRatingService.shared.openFeedbackEmail(source: "dashboard_settings")
+                        }
                     }
                 }
 

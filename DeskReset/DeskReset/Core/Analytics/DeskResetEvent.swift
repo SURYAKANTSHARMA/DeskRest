@@ -45,6 +45,13 @@ enum DeskResetEvent {
     case quickActionTriggered(source: String, action: String) // e.g. "menu_bar", "start_monitoring"
     case settingsUpdated(settingName: String, value: String)
 
+    // ── App Rating & Feedback ───────────────────────────────────────────
+    case ratingPromptShown(trigger: String)
+    case ratingSentimentSelected(sentiment: String, rating: Int)
+    case ratingAppStoreOpened(source: String)
+    case ratingFeedbackOpened(source: String)
+    case ratingPromptDismissed(action: String)
+
     // ── Failures & Permissions ───────────────────────────────────────────
     case cameraPermissionDenied(status: String) // "denied" | "restricted"
     case cameraError(error: String)
@@ -81,6 +88,11 @@ extension DeskResetEvent {
         case .scanIntervalChanged:        return "scan_interval_changed"
         case .quickActionTriggered:       return "quick_action_triggered"
         case .settingsUpdated:            return "settings_updated"
+        case .ratingPromptShown:          return "rating_prompt_shown"
+        case .ratingSentimentSelected:    return "rating_sentiment_selected"
+        case .ratingAppStoreOpened:       return "rating_app_store_opened"
+        case .ratingFeedbackOpened:       return "rating_feedback_opened"
+        case .ratingPromptDismissed:      return "rating_prompt_dismissed"
         case .cameraPermissionDenied:     return "camera_permission_denied"
         case .cameraError:                return "camera_error"
         case .notificationPermissionDenied: return "notification_permission_denied"
@@ -136,6 +148,16 @@ extension DeskResetEvent {
             return ["action_source": source, "action_name": action]
         case .settingsUpdated(let setting, let value):
             return ["setting_name": setting, "setting_value": value]
+        case .ratingPromptShown(let trigger):
+            return ["trigger": trigger]
+        case .ratingSentimentSelected(let sentiment, let rating):
+            return ["sentiment": sentiment, "star_rating": rating]
+        case .ratingAppStoreOpened(let source):
+            return ["source": source]
+        case .ratingFeedbackOpened(let source):
+            return ["source": source]
+        case .ratingPromptDismissed(let action):
+            return ["action": action]
         case .cameraPermissionDenied(let status):
             return ["permission_status": status]
         case .cameraError(let error):

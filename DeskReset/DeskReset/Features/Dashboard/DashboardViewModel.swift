@@ -31,6 +31,22 @@ struct CategoryRate: Identifiable, Sendable {
     let goodRate: Double   // 0.0 – 1.0
 }
 
+struct ScoreTimelinePoint: Identifiable, Sendable {
+    let id: UUID
+    let time: Date
+    let score: Int
+
+    init(id: UUID = UUID(), time: Date, score: Int) {
+        self.id = id
+        self.time = time
+        self.score = score
+    }
+}
+
+extension Notification.Name {
+    static let postureScanDidComplete = Notification.Name("postureScanDidComplete")
+}
+
 @Observable
 @MainActor
 final class DashboardViewModel {
@@ -71,6 +87,8 @@ final class DashboardViewModel {
     var todayAwayCount: Int = 0
     /// Per-category performance across all of today's valid scans
     var categoryRates: [CategoryRate] = []
+    /// Real recorded scan points for today's timeline
+    var todayTimelinePoints: [ScoreTimelinePoint] = []
 
     /// Data-driven AI coaching guidance synthesizing historical logs and ergonomic fixes
     var aiCoachGuidance: AICoachGuidance? = nil
@@ -176,13 +194,13 @@ final class DashboardViewModel {
             let latestScore: Int
             let avgScore: Int
             
-            if let ps = postureService, ps.lastRunStatus == .personNotDetected {
-                latestScore = 0
-                avgScore = todayLogs.isEmpty ? 0 : todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
-            } else if let firstLog = todayLogs.first {
+            if let firstLog = todayLogs.first {
                 latestScore = firstLog.score
                 avgScore = todayLogs.reduce(0) { $0 + $1.score } / todayLogs.count
-            } else if let ps = postureService, ps.isMonitoring {
+            } else if let ps = postureService, let assessment = ps.currentAssessment {
+                latestScore = assessment.score
+                avgScore = assessment.score
+            } else if let ps = postureService, ps.isMonitoring && ps.lastRunStatus == .success && ps.postureScore > 0 {
                 latestScore = ps.postureScore
                 avgScore = ps.postureScore
             } else {
@@ -196,6 +214,10 @@ final class DashboardViewModel {
             todayScoreLabel = scoreLabel(todayScore)
             todayScansCount = todayLogs.count
             todayAwayCount = todayAwayLogs.count
+
+            // Sort today's valid logs chronologically for the timeline chart
+            let sortedTodayLogs = todayLogs.sorted { $0.timestamp < $1.timestamp }
+            todayTimelinePoints = sortedTodayLogs.map { ScoreTimelinePoint(time: $0.timestamp, score: $0.score) }
 
             // History tab: scans & daily reports (excluding Away logs)
             let validLogs = allLogs.filter { $0.issuesSummary != "Away" }

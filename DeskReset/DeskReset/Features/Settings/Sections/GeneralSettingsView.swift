@@ -39,6 +39,36 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            Section("Support & Reviews") {
+                Button {
+                    AppRatingService.shared.rateOnAppStore(source: "general_settings")
+                } label: {
+                    HStack {
+                        Label("Rate DeskReset on App Store", systemImage: "star.fill")
+                            .foregroundStyle(Color.yellow)
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    AppRatingService.shared.openFeedbackEmail(source: "general_settings")
+                } label: {
+                    HStack {
+                        Label("Send Feedback & Support", systemImage: "envelope.fill")
+                            .foregroundStyle(Color.brandSecondary)
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+
             Section("Legal") {
                 Button {
                     showPrivacyPolicy = true

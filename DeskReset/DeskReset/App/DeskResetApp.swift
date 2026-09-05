@@ -62,6 +62,17 @@ struct DeskResetApp: App {
         }
         .defaultSize(width: 760, height: 510)
         .windowResizability(.contentSize)
+        .commands {
+            CommandGroup(after: .help) {
+                Divider()
+                Button("Rate DeskReset on Mac App Store...") {
+                    AppRatingService.shared.rateOnAppStore(source: "macos_help_menu")
+                }
+                Button("Send Feedback to Developer...") {
+                    AppRatingService.shared.openFeedbackEmail(source: "macos_help_menu")
+                }
+            }
+        }
     }
 }
 

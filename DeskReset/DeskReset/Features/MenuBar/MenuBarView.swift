@@ -212,6 +212,18 @@ struct MenuBarView: View {
                 NotificationCenter.default.post(name: Notification.Name("ShowSettingsTab"), object: nil)
             }
 
+            Divider().padding(.leading, 44)
+
+            // Rate DeskReset
+            menuRow(
+                icon: "star.fill",
+                label: "Rate DeskReset",
+                subtitle: "Review on Mac App Store",
+                iconColor: Color(red: 0.99, green: 0.76, blue: 0.18)
+            ) {
+                AppRatingService.shared.rateOnAppStore(source: "menu_bar")
+            }
+
             Divider()
 
             // Quit
